@@ -80,7 +80,7 @@ export const INITIAL_DATABASE: AppDatabase = {
       excerpt: 'Pahami formula sumbu simetri x = -b/(2a) dan diskriminan D = b² - 4ac tanpa harus menghafal banyak rumus turunan.',
       content: 'Dalam menyelesaikan soal fungsi kuadrat f(x) = ax² + bx + c, seringkali siswa terjebak menghitung titik puncak secara berbelit. Cukup gunakan turunan pertama f\'(x) = 2ax + b = 0, sehingga didapatkan x_puncak = -b / (2a). Substitusikan kembali untuk mendapatkan nilai optimum y_puncak = -D / (4a). Simak modul lengkap di menu Materi Pembelajaran!',
       category: 'Tips & Trik',
-      author: 'Bpk. Ali M.Si',
+      author: 'Bpk. Akhmad Alwi, S.Pd',
       publishDate: '14 September 2026',
       isPinned: false,
       coverGradient: 'from-amber-600 to-orange-700',
@@ -172,7 +172,7 @@ export const INITIAL_DATABASE: AppDatabase = {
       attachmentName: 'Rangkuman_Rumus_Trigonometri.pdf',
       createdAt: '2026-01-18',
       updatedAt: '2026-03-01',
-      author: 'Bpk. Ali M.Si',
+      author: 'Bpk. Akhmad Alwi, S.Pd',
     },
     {
       id: 'mat_3',
@@ -208,7 +208,7 @@ export const INITIAL_DATABASE: AppDatabase = {
       attachmentName: 'Catatan_Kalkulus_Diferensial_XI.pdf',
       createdAt: '2026-02-10',
       updatedAt: '2026-03-05',
-      author: 'Bpk. Ali M.Si',
+      author: 'Bpk. Akhmad Alwi, S.Pd',
     },
   ],
 
