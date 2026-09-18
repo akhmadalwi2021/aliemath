@@ -5,7 +5,7 @@ export const INITIAL_DATABASE: AppDatabase = {
     {
       id: 'usr_admin',
       username: 'admin',
-      fullName: 'Bpk. Ali M.Si (Admin & Guru Matematika)',
+      fullName: 'Bpk. Akhmad Alwi, S.Pd (Admin & Guru Matematika)',
       role: 'admin',
       password: 'admin',
       status: 'active',
