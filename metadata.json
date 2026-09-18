@@ -1,0 +1,6 @@
+{
+  "name": "Aliemath.my.id",
+  "description": "Platform pembelajaran matematika interaktif dan ujian CBT (Computer Based Test) dengan bank soal, manajemen siswa terpusat, dan berita terkini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

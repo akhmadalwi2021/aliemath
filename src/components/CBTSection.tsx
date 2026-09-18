@@ -1,0 +1,1275 @@
+import React, { useState } from 'react';
+import {
+  FileCheck2,
+  Clock,
+  Award,
+  BookOpen,
+  Plus,
+  Play,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  BarChart3,
+  Search,
+  ChevronRight,
+  Filter,
+  Calendar,
+  ListOrdered,
+  FileSpreadsheet,
+  Download,
+  Trash2,
+  Edit2,
+  HelpCircle,
+  Check,
+  X,
+  PlusCircle,
+  Eye
+} from 'lucide-react';
+import { CBTExam, CBTAttempt, CBTQuestion, User, UserRole } from '../types';
+
+interface CBTSectionProps {
+  exams: CBTExam[];
+  attempts: CBTAttempt[];
+  currentUser: User;
+  onStartExam: (exam: CBTExam) => void;
+  onAddExam: (newExam: Omit<CBTExam, 'id'>) => void;
+  onEditExam: (exam: CBTExam) => void;
+  onDeleteExam: (id: string) => void;
+  onUpdateQuestions: (examId: string, questions: CBTQuestion[]) => void;
+}
+
+export const CBTSection: React.FC<CBTSectionProps> = ({
+  exams,
+  attempts,
+  currentUser,
+  onStartExam,
+  onAddExam,
+  onEditExam,
+  onDeleteExam,
+  onUpdateQuestions,
+}) => {
+  // Tabs:
+  // For Student: 'active_tasks' | 'history' | 'grades'
+  // For Admin: 'manage_exams' | 'question_bank' | 'student_results'
+  const [activeTab, setActiveTab] = useState<string>(
+    currentUser.role === 'admin' ? 'manage_exams' : 'active_tasks'
+  );
+
+  const [selectedAttemptForReview, setSelectedAttemptForReview] = useState<CBTAttempt | null>(null);
+  const [selectedExamForQuestions, setSelectedExamForQuestions] = useState<CBTExam | null>(null);
+
+  // Admin Exam Form State
+  const [isExamModalOpen, setIsExamModalOpen] = useState(false);
+  const [editingExam, setEditingExam] = useState<CBTExam | null>(null);
+  const [formExamTitle, setFormExamTitle] = useState('');
+  const [formExamDesc, setFormExamDesc] = useState('');
+  const [formExamGrade, setFormExamGrade] = useState<CBTExam['gradeLevel']>('Kelas 10');
+  const [formExamSubject, setFormExamSubject] = useState('Matematika Wajib');
+  const [formExamDuration, setFormExamDuration] = useState(20);
+  const [formExamPassing, setFormExamPassing] = useState(75);
+  const [formExamIsActive, setFormExamIsActive] = useState(true);
+
+  // Admin Question Form State
+  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<CBTQuestion | null>(null);
+  const [formQuestionText, setFormQuestionText] = useState('');
+  const [formQuestionFormula, setFormQuestionFormula] = useState('');
+  const [formOptA, setFormOptA] = useState('');
+  const [formOptB, setFormOptB] = useState('');
+  const [formOptC, setFormOptC] = useState('');
+  const [formOptD, setFormOptD] = useState('');
+  const [formOptE, setFormOptE] = useState('');
+  const [formCorrectOpt, setFormCorrectOpt] = useState('A');
+  const [formExplanation, setFormExplanation] = useState('');
+  const [formPoints, setFormPoints] = useState(20);
+
+  // Filter for results
+  const [resultsClassFilter, setResultsClassFilter] = useState('Semua');
+
+  // Student specific attempts
+  const myAttempts = attempts.filter((att) => att.studentId === currentUser.id);
+
+  // Handle open add exam
+  const handleOpenAddExam = () => {
+    setEditingExam(null);
+    setFormExamTitle('');
+    setFormExamDesc('Ujian berbasis komputer (CBT) materi matematika.');
+    setFormExamGrade('Kelas 10');
+    setFormExamSubject('Matematika Wajib');
+    setFormExamDuration(20);
+    setFormExamPassing(75);
+    setFormExamIsActive(true);
+    setIsExamModalOpen(true);
+  };
+
+  const handleOpenEditExam = (e: CBTExam) => {
+    setEditingExam(e);
+    setFormExamTitle(e.title);
+    setFormExamDesc(e.description);
+    setFormExamGrade(e.gradeLevel);
+    setFormExamSubject(e.subject);
+    setFormExamDuration(e.durationMinutes);
+    setFormExamPassing(e.passingScore);
+    setFormExamIsActive(e.isActive);
+    setIsExamModalOpen(true);
+  };
+
+  const handleSaveExam = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formExamTitle.trim()) return;
+
+    if (editingExam) {
+      onEditExam({
+        ...editingExam,
+        title: formExamTitle,
+        description: formExamDesc,
+        gradeLevel: formExamGrade,
+        subject: formExamSubject,
+        durationMinutes: Number(formExamDuration),
+        passingScore: Number(formExamPassing),
+        isActive: formExamIsActive,
+      });
+    } else {
+      onAddExam({
+        title: formExamTitle,
+        description: formExamDesc,
+        gradeLevel: formExamGrade,
+        subject: formExamSubject,
+        durationMinutes: Number(formExamDuration),
+        totalQuestions: 0,
+        passingScore: Number(formExamPassing),
+        isActive: formExamIsActive,
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().split('T')[0],
+        questions: [],
+        createdAt: new Date().toISOString().split('T')[0],
+      });
+    }
+    setIsExamModalOpen(false);
+  };
+
+  // Open question modal
+  const handleOpenAddQuestion = (exam: CBTExam) => {
+    setSelectedExamForQuestions(exam);
+    setEditingQuestion(null);
+    setFormQuestionText('');
+    setFormQuestionFormula('');
+    setFormOptA('');
+    setFormOptB('');
+    setFormOptC('');
+    setFormOptD('');
+    setFormOptE('');
+    setFormCorrectOpt('A');
+    setFormExplanation('');
+    setFormPoints(20);
+    setIsQuestionModalOpen(true);
+  };
+
+  const handleOpenEditQuestion = (exam: CBTExam, q: CBTQuestion) => {
+    setSelectedExamForQuestions(exam);
+    setEditingQuestion(q);
+    setFormQuestionText(q.questionText);
+    setFormQuestionFormula(q.questionFormula || '');
+    setFormOptA(q.options.find((o) => o.id === 'A')?.text || '');
+    setFormOptB(q.options.find((o) => o.id === 'B')?.text || '');
+    setFormOptC(q.options.find((o) => o.id === 'C')?.text || '');
+    setFormOptD(q.options.find((o) => o.id === 'D')?.text || '');
+    setFormOptE(q.options.find((o) => o.id === 'E')?.text || '');
+    setFormCorrectOpt(q.correctOptionId);
+    setFormExplanation(q.explanation);
+    setFormPoints(q.points);
+    setIsQuestionModalOpen(true);
+  };
+
+  const handleSaveQuestion = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedExamForQuestions || !formQuestionText.trim()) return;
+
+    const options = [
+      { id: 'A', text: formOptA },
+      { id: 'B', text: formOptB },
+      { id: 'C', text: formOptC },
+      { id: 'D', text: formOptD },
+      { id: 'E', text: formOptE },
+    ].filter((o) => o.text.trim() !== '');
+
+    let updatedQuestions: CBTQuestion[] = [...selectedExamForQuestions.questions];
+
+    if (editingQuestion) {
+      updatedQuestions = updatedQuestions.map((q) =>
+        q.id === editingQuestion.id
+          ? {
+              ...q,
+              questionText: formQuestionText,
+              questionFormula: formQuestionFormula || undefined,
+              options,
+              correctOptionId: formCorrectOpt,
+              explanation: formExplanation,
+              points: Number(formPoints),
+            }
+          : q
+      );
+    } else {
+      const newQ: CBTQuestion = {
+        id: `q_${Date.now()}`,
+        number: updatedQuestions.length + 1,
+        questionText: formQuestionText,
+        questionFormula: formQuestionFormula || undefined,
+        options,
+        correctOptionId: formCorrectOpt,
+        explanation: formExplanation,
+        points: Number(formPoints),
+      };
+      updatedQuestions.push(newQ);
+    }
+
+    onUpdateQuestions(selectedExamForQuestions.id, updatedQuestions);
+    setIsQuestionModalOpen(false);
+  };
+
+  const handleDeleteQuestion = (exam: CBTExam, qId: string) => {
+    if (!confirm('Hapus butir soal ini dari bank soal?')) return;
+    const updated = exam.questions.filter((q) => q.id !== qId);
+    onUpdateQuestions(exam.id, updated);
+  };
+
+  // Export results CSV
+  const handleExportCSV = () => {
+    const headers = ['Nama Siswa', 'Kelas', 'NISN', 'Ujian CBT', 'Skor', 'Status', 'Tanggal Selesai'];
+    const rows = attempts.map((a) => [
+      `"${a.studentName}"`,
+      `"${a.studentClass}"`,
+      `"${a.studentNisn || '-'}"`,
+      `"${a.examTitle}"`,
+      a.score,
+      a.isPassed ? 'LULUS' : 'REMEDIAL',
+      `"${new Date(a.completedAt).toLocaleString('id-ID')}"`,
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `rekap-nilai-cbt-aliemath-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header Banner */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-blue-600 font-bold text-xs uppercase tracking-wider">
+            <FileCheck2 className="w-4 h-4" />
+            <span>Computer Based Test (CBT) & Bank Soal</span>
+          </div>
+          <h1 className="text-2xl font-black text-slate-900 mt-1">
+            Soal Latihan & Evaluasi Matematika
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            {currentUser.role === 'admin'
+              ? 'Kelola paket ujian, butir bank soal CBT berumus, dan pantau rekapitulasi nilai seluruh siswa.'
+              : 'Kerjakan tugas CBT mandiri, pantau batas waktu pengerjaan, dan pelajari pembahasan nilai.'}
+          </p>
+        </div>
+
+        {currentUser.role === 'admin' && (
+          <button
+            id="btn-add-cbt-exam"
+            onClick={handleOpenAddExam}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 shadow-xs transition-colors shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            Buat Paket Ujian CBT
+          </button>
+        )}
+      </div>
+
+      {/* Sub-Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
+        {currentUser.role === 'student' ? (
+          <>
+            <button
+              onClick={() => setActiveTab('active_tasks')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === 'active_tasks'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              1. Tugas & Ujian Terkini
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === 'history'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              2. Riwayat Pengerjaan ({myAttempts.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('grades')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === 'grades'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              3. Nilai Tugas & Pembahasan
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => setActiveTab('manage_exams')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === 'manage_exams'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Kelola Paket Ujian CBT ({exams.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('question_bank')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === 'question_bank'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Bank Soal & Formula
+            </button>
+            <button
+              onClick={() => setActiveTab('student_results')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === 'student_results'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Rekapitulasi Nilai Siswa ({attempts.length})
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* ================= STUDENT VIEW ================= */}
+      {/* 1. Tugas Terkini */}
+      {currentUser.role === 'student' && activeTab === 'active_tasks' && (
+        <div className="space-y-4">
+          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            Paket Ujian CBT Aktif Siap Dikerjakan
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {exams
+              .filter((e) => e.isActive)
+              .map((exam) => {
+                const existingAttempt = myAttempts.find((a) => a.examId === exam.id);
+                const hasTaken = Boolean(existingAttempt);
+
+                return (
+                  <div
+                    key={exam.id}
+                    className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                          {exam.gradeLevel}
+                        </span>
+                        <span className="text-[11px] font-medium text-slate-500">{exam.subject}</span>
+                      </div>
+
+                      <h3 className="text-base font-bold text-slate-900 leading-snug">{exam.title}</h3>
+                      <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">{exam.description}</p>
+
+                      <div className="grid grid-cols-3 gap-2 mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                        <div>
+                          <div className="text-[10px] text-slate-400 font-medium">Durasi</div>
+                          <div className="text-xs font-bold text-slate-800 flex items-center justify-center gap-1 mt-0.5">
+                            <Clock className="w-3 h-3 text-blue-600" />
+                            <span>{exam.durationMinutes} Menit</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400 font-medium">Jumlah Soal</div>
+                          <div className="text-xs font-bold text-slate-800 mt-0.5">
+                            {exam.questions.length} Butir
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400 font-medium">Standar KKM</div>
+                          <div className="text-xs font-bold text-emerald-600 mt-0.5">
+                            {exam.passingScore}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
+                      {hasTaken ? (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span className="text-xs font-semibold text-slate-700">
+                            Sudah dikerjakan (Nilai: <strong className="text-blue-600">{existingAttempt?.score}</strong>)
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-semibold text-amber-600 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                          Belum Dikerjakan
+                        </span>
+                      )}
+
+                      <button
+                        id={`btn-exam-${exam.id}`}
+                        onClick={() => onStartExam(exam)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors ${
+                          hasTaken
+                            ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-500/20'
+                        }`}
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>{hasTaken ? 'Ulangi CBT (Latihan)' : 'Mulai Ujian CBT'}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* 2. Riwayat Tugas Siswa */}
+      {currentUser.role === 'student' && activeTab === 'history' && (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+          <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Riwayat Pengerjaan Tugas & Ujian CBT
+            </h3>
+            <span className="text-xs text-slate-500 font-medium">
+              Total {myAttempts.length} Percobaan Tersimpan
+            </span>
+          </div>
+
+          {myAttempts.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 text-xs">
+              Kamu belum mengerjakan tugas atau ujian CBT apapun. Buka menu <strong>Tugas Terkini</strong> untuk memulai!
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {myAttempts.map((att) => (
+                <div key={att.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/60 transition-colors">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          att.isPassed
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}
+                      >
+                        {att.isPassed ? 'LULUS KKM' : 'REMEDIAL'}
+                      </span>
+                      <span className="text-xs text-slate-400 font-mono">
+                        {new Date(att.completedAt).toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-900 mt-1">{att.examTitle}</h4>
+                    <div className="text-xs text-slate-500 mt-1 flex items-center gap-3">
+                      <span>Benar: <strong className="text-emerald-600">{att.correctCount}</strong> / {att.totalQuestions} Soal</span>
+                      <span>•</span>
+                      <span>Waktu: {Math.floor(att.timeSpentSeconds / 60)} menit</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-2xl font-black text-blue-600">{att.score}</div>
+                      <div className="text-[10px] text-slate-400 font-medium">Skor Akhir</div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedAttemptForReview(att)}
+                      className="px-3 py-1.5 rounded-xl border border-blue-200 text-blue-600 hover:bg-blue-50 text-xs font-bold"
+                    >
+                      Lihat Pembahasan
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3. Nilai Tugas & Pembahasan Siswa */}
+      {currentUser.role === 'student' && activeTab === 'grades' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs text-center">
+              <div className="text-xs text-slate-400 font-semibold">Rata-Rata Nilai CBT</div>
+              <div className="text-3xl font-black text-blue-600 mt-1">
+                {myAttempts.length > 0
+                  ? Math.round(myAttempts.reduce((acc, c) => acc + c.score, 0) / myAttempts.length)
+                  : 0}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1">Skala 0 - 100</div>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs text-center">
+              <div className="text-xs text-slate-400 font-semibold">Tugas Tuntas (Lulus)</div>
+              <div className="text-3xl font-black text-emerald-600 mt-1">
+                {myAttempts.filter((a) => a.isPassed).length}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1">Melampaui KKM</div>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs text-center">
+              <div className="text-xs text-slate-400 font-semibold">Perlu Remedial</div>
+              <div className="text-3xl font-black text-rose-500 mt-1">
+                {myAttempts.filter((a) => !a.isPassed).length}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1">Di bawah KKM</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+            <h3 className="text-sm font-bold text-slate-900">Pilih Ujian untuk Melihat Pembahasan Lengkap</h3>
+            <div className="space-y-2">
+              {myAttempts.map((att) => (
+                <div
+                  key={att.id}
+                  onClick={() => setSelectedAttemptForReview(att)}
+                  className="p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 cursor-pointer transition-all flex items-center justify-between"
+                >
+                  <div>
+                    <div className="text-xs font-bold text-slate-800">{att.examTitle}</div>
+                    <div className="text-[11px] text-slate-500">
+                      Diselesaikan: {new Date(att.completedAt).toLocaleDateString('id-ID')} • Skor: {att.score}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ADMIN VIEW ================= */}
+      {/* 1. Kelola Paket Ujian CBT */}
+      {currentUser.role === 'admin' && activeTab === 'manage_exams' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Daftar Paket Ujian CBT Aktif & Arsip
+            </div>
+            <button
+              onClick={handleOpenAddExam}
+              className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700"
+            >
+              + Buat Paket Ujian
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {exams.map((exam) => (
+              <div
+                key={exam.id}
+                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-4"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      {exam.gradeLevel}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        exam.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {exam.isActive ? 'Status: Aktif' : 'Status: Ditutup'}
+                    </span>
+                  </div>
+
+                  <h3 className="text-base font-bold text-slate-900 leading-snug">{exam.title}</h3>
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">{exam.description}</p>
+
+                  <div className="grid grid-cols-3 gap-2 mt-3 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-center text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Durasi</span>
+                      <strong className="text-slate-800">{exam.durationMinutes}m</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Butir Soal</span>
+                      <strong className="text-slate-800">{exam.questions.length}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">KKM</span>
+                      <strong className="text-emerald-600">{exam.passingScore}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <button
+                    onClick={() => {
+                      setSelectedExamForQuestions(exam);
+                      setActiveTab('question_bank');
+                    }}
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1"
+                  >
+                    Kelola Soal ({exam.questions.length}) <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleOpenEditExam(exam)}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Edit Setting Ujian"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Hapus paket ujian "${exam.title}"?`)) {
+                          onDeleteExam(exam.id);
+                        }
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      title="Hapus Paket"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 2. Bank Soal & Formula (Admin) */}
+      {currentUser.role === 'admin' && activeTab === 'question_bank' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Pilih Paket Ujian:</label>
+              <select
+                value={selectedExamForQuestions?.id || exams[0]?.id}
+                onChange={(e) => {
+                  const target = exams.find((x) => x.id === e.target.value);
+                  if (target) setSelectedExamForQuestions(target);
+                }}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold bg-white"
+              >
+                {exams.map((ex) => (
+                  <option key={ex.id} value={ex.id}>
+                    {ex.title} ({ex.questions.length} soal)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedExamForQuestions && (
+              <button
+                onClick={() => handleOpenAddQuestion(selectedExamForQuestions)}
+                className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700 flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                Tambah Butir Soal CBT
+              </button>
+            )}
+          </div>
+
+          {/* Questions list */}
+          {selectedExamForQuestions ? (
+            <div className="space-y-3">
+              {selectedExamForQuestions.questions.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-xs text-slate-400">
+                  Belum ada soal pada paket ini. Klik tombol <strong>Tambah Butir Soal CBT</strong> di atas.
+                </div>
+              ) : (
+                selectedExamForQuestions.questions.map((q, idx) => (
+                  <div
+                    key={q.id}
+                    className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                        <span className="text-xs font-bold text-slate-800">
+                          Bobot: {q.points} Poin
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenEditQuestion(selectedExamForQuestions, q)}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteQuestion(selectedExamForQuestions, q.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="text-xs sm:text-sm text-slate-900 font-medium">
+                      {q.questionText}
+                    </div>
+
+                    {q.questionFormula && (
+                      <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 font-mono text-xs text-blue-700 font-bold">
+                        Formula: {q.questionFormula}
+                      </div>
+                    )}
+
+                    {/* Options list */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
+                      {q.options.map((opt) => (
+                        <div
+                          key={opt.id}
+                          className={`p-2 rounded-lg border flex items-center gap-2 ${
+                            opt.id === q.correctOptionId
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold'
+                              : 'bg-slate-50 border-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <span className="w-5 h-5 rounded-full bg-white border border-current flex items-center justify-center text-[10px]">
+                            {opt.id}
+                          </span>
+                          <span>{opt.text}</span>
+                          {opt.id === q.correctOptionId && (
+                            <Check className="w-3.5 h-3.5 text-emerald-600 ml-auto" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Explanation */}
+                    {q.explanation && (
+                      <div className="p-2.5 rounded-xl bg-slate-50 text-[11px] text-slate-600 leading-relaxed border border-slate-100">
+                        <strong className="text-slate-800">Pembahasan: </strong>
+                        {q.explanation}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="p-8 text-center text-xs text-slate-400">Pilih paket ujian terlebih dahulu.</div>
+          )}
+        </div>
+      )}
+
+      {/* 3. Rekapitulasi Nilai Siswa (Admin) */}
+      {currentUser.role === 'admin' && activeTab === 'student_results' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-slate-700">Filter Kelas:</label>
+              <select
+                value={resultsClassFilter}
+                onChange={(e) => setResultsClassFilter(e.target.value)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold bg-white"
+              >
+                <option value="Semua">Semua Kelas</option>
+                <option value="X MIPA 1">X MIPA 1</option>
+                <option value="XI MIPA 2">XI MIPA 2</option>
+                <option value="XII MIPA 3">XII MIPA 3</option>
+              </select>
+            </div>
+
+            <button
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 shadow-xs transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Unduh Rekap CSV
+            </button>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-semibold text-[10px]">
+                  <tr>
+                    <th className="py-3 px-4">Nama Siswa</th>
+                    <th className="py-3 px-3">Kelas</th>
+                    <th className="py-3 px-4">Paket Ujian CBT</th>
+                    <th className="py-3 px-3">Skor Nilai</th>
+                    <th className="py-3 px-3">Status</th>
+                    <th className="py-3 px-3">Waktu Selesai</th>
+                    <th className="py-3 px-3 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {attempts
+                    .filter((att) => resultsClassFilter === 'Semua' || att.studentClass === resultsClassFilter)
+                    .map((att) => (
+                      <tr key={att.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4 font-bold text-slate-900">
+                          {att.studentName}
+                          <div className="text-[10px] text-slate-400 font-mono">NISN: {att.studentNisn || '-'}</div>
+                        </td>
+                        <td className="py-3 px-3 font-medium text-slate-600">{att.studentClass}</td>
+                        <td className="py-3 px-4 font-medium text-slate-800">{att.examTitle}</td>
+                        <td className="py-3 px-3">
+                          <span className="text-sm font-black text-blue-600">{att.score}</span>
+                          <span className="text-[10px] text-slate-400 block font-sans">
+                            {att.correctCount}/{att.totalQuestions} Benar
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              att.isPassed
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            {att.isPassed ? 'LULUS' : 'REMEDIAL'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-[11px] text-slate-500">
+                          {new Date(att.completedAt).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            onClick={() => setSelectedAttemptForReview(att)}
+                            className="text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1"
+                          >
+                            <Eye className="w-3.5 h-3.5" /> Review
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review Modal: Question-by-Question review with student answer vs correct answer and step-by-step explanation */}
+      {selectedAttemptForReview && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <span className="text-xs font-bold text-blue-600 uppercase">Review Hasil Ujian CBT</span>
+                <h3 className="text-lg font-black text-slate-900">{selectedAttemptForReview.examTitle}</h3>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  Siswa: {selectedAttemptForReview.studentName} ({selectedAttemptForReview.studentClass})
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedAttemptForReview(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Score header */}
+            <div className="grid grid-cols-4 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 text-center text-xs">
+              <div>
+                <span className="text-slate-400 text-[10px]">Skor Akhir</span>
+                <div className="text-xl font-black text-blue-600">{selectedAttemptForReview.score}</div>
+              </div>
+              <div>
+                <span className="text-slate-400 text-[10px]">Jawaban Benar</span>
+                <div className="text-xl font-black text-emerald-600">
+                  {selectedAttemptForReview.correctCount}
+                </div>
+              </div>
+              <div>
+                <span className="text-slate-400 text-[10px]">Jawaban Salah</span>
+                <div className="text-xl font-black text-rose-500">
+                  {selectedAttemptForReview.wrongCount}
+                </div>
+              </div>
+              <div>
+                <span className="text-slate-400 text-[10px]">Status Kelulusan</span>
+                <div
+                  className={`text-sm font-bold mt-1 ${
+                    selectedAttemptForReview.isPassed ? 'text-emerald-700' : 'text-rose-700'
+                  }`}
+                >
+                  {selectedAttemptForReview.isPassed ? 'LULUS' : 'REMEDIAL'}
+                </div>
+              </div>
+            </div>
+
+            {/* Question Breakdown */}
+            <div className="space-y-4">
+              {(() => {
+                const targetExam = exams.find((e) => e.id === selectedAttemptForReview.examId);
+                if (!targetExam) {
+                  return (
+                    <p className="text-xs text-slate-400">
+                      Rincian soal paket ini telah diperbarui atau dipindahkan.
+                    </p>
+                  );
+                }
+
+                return targetExam.questions.map((q, idx) => {
+                  const studentAns = selectedAttemptForReview.answers[q.id];
+                  const isCorrect = studentAns === q.correctOptionId;
+
+                  return (
+                    <div
+                      key={q.id}
+                      className={`p-4 rounded-xl border text-xs space-y-2.5 ${
+                        isCorrect ? 'bg-emerald-50/40 border-emerald-200' : 'bg-rose-50/40 border-rose-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-800">Soal Nomor {idx + 1}</span>
+                        <span
+                          className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${
+                            isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {isCorrect ? 'Benar (+20 Poin)' : 'Salah (0 Poin)'}
+                        </span>
+                      </div>
+
+                      <div className="text-slate-900 font-medium">{q.questionText}</div>
+
+                      {q.questionFormula && (
+                        <div className="p-2 rounded bg-white font-mono text-xs text-indigo-700 font-bold border border-slate-200">
+                          {q.questionFormula}
+                        </div>
+                      )}
+
+                      {/* Options breakdown */}
+                      <div className="space-y-1">
+                        {q.options.map((opt) => {
+                          const wasChosen = studentAns === opt.id;
+                          const isRight = q.correctOptionId === opt.id;
+
+                          return (
+                            <div
+                              key={opt.id}
+                              className={`p-2 rounded-lg flex items-center justify-between ${
+                                isRight
+                                  ? 'bg-emerald-100/70 border border-emerald-300 font-bold text-emerald-950'
+                                  : wasChosen
+                                  ? 'bg-rose-100/70 border border-rose-300 font-medium text-rose-950'
+                                  : 'bg-white border border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              <span>
+                                <strong>{opt.id}.</strong> {opt.text}
+                              </span>
+                              {isRight && (
+                                <span className="text-[10px] font-bold text-emerald-700">Kunci Benar ✓</span>
+                              )}
+                              {!isRight && wasChosen && (
+                                <span className="text-[10px] font-bold text-rose-600">Jawaban Siswa ✗</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {q.explanation && (
+                        <div className="p-2.5 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 leading-relaxed font-sans">
+                          <strong className="text-blue-700 block mb-0.5">Pembahasan & Langkah Pengerjaan:</strong>
+                          {q.explanation}
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setSelectedAttemptForReview(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Add/Edit Exam Modal */}
+      {isExamModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">
+                {editingExam ? 'Ubah Paket Ujian CBT' : 'Buat Paket Ujian CBT Baru'}
+              </h3>
+              <button
+                onClick={() => setIsExamModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveExam} className="space-y-3.5 mt-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Judul Paket Ujian</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: PTS CBT Matematika Kelas X Semester Ganjil"
+                  value={formExamTitle}
+                  onChange={(e) => setFormExamTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Tingkat Kelas</label>
+                  <select
+                    value={formExamGrade}
+                    onChange={(e) => setFormExamGrade(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                  >
+                    <option value="Kelas 10">Kelas 10</option>
+                    <option value="Kelas 11">Kelas 11</option>
+                    <option value="Kelas 12">Kelas 12</option>
+                    <option value="Semua Kelas">Semua Kelas</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Mata Pelajaran</label>
+                  <input
+                    type="text"
+                    value={formExamSubject}
+                    onChange={(e) => setFormExamSubject(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Durasi Ujian (Menit)</label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={180}
+                    required
+                    value={formExamDuration}
+                    onChange={(e) => setFormExamDuration(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Standar KKM (0-100)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    required
+                    value={formExamPassing}
+                    onChange={(e) => setFormExamPassing(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Instruksi / Deskripsi Ujian</label>
+                <textarea
+                  rows={2}
+                  value={formExamDesc}
+                  onChange={(e) => setFormExamDesc(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="chk-active-exam"
+                  checked={formExamIsActive}
+                  onChange={(e) => setFormExamIsActive(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="chk-active-exam" className="font-semibold text-slate-700 cursor-pointer">
+                  Aktifkan Paket Ujian (Dapat langsung dikerjakan siswa)
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsExamModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 shadow-xs"
+                >
+                  {editingExam ? 'Simpan Pengaturan' : 'Buat Ujian'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Add/Edit Question Modal */}
+      {isQuestionModalOpen && selectedExamForQuestions && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">
+                {editingQuestion ? 'Edit Butir Soal' : 'Tambah Soal ke ' + selectedExamForQuestions.title}
+              </h3>
+              <button
+                onClick={() => setIsQuestionModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveQuestion} className="space-y-3.5 mt-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Pertanyaan Soal</label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Tuliskan teks pertanyaan matematika di sini..."
+                  value={formQuestionText}
+                  onChange={(e) => setFormQuestionText(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Formula Matematika Utama (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: f(x) = 2x² - 8x + 6"
+                  value={formQuestionFormula}
+                  onChange={(e) => setFormQuestionFormula(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Options */}
+              <div className="space-y-2">
+                <label className="block font-bold text-slate-800">Pilihan Jawaban (A s/d E):</label>
+                {[
+                  { id: 'A', val: formOptA, setVal: setFormOptA },
+                  { id: 'B', val: formOptB, setVal: setFormOptB },
+                  { id: 'C', val: formOptC, setVal: setFormOptC },
+                  { id: 'D', val: formOptD, setVal: setFormOptD },
+                  { id: 'E', val: formOptE, setVal: setFormOptE },
+                ].map((opt) => (
+                  <div key={opt.id} className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-md bg-slate-100 font-bold flex items-center justify-center text-slate-700 shrink-0">
+                      {opt.id}
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      placeholder={`Pilihan ${opt.id}...`}
+                      value={opt.val}
+                      onChange={(e) => opt.setVal(e.target.value)}
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Kunci Jawaban Benar</label>
+                  <select
+                    value={formCorrectOpt}
+                    onChange={(e) => setFormCorrectOpt(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-bold text-emerald-700"
+                  >
+                    <option value="A">Pilihan A</option>
+                    <option value="B">Pilihan B</option>
+                    <option value="C">Pilihan C</option>
+                    <option value="D">Pilihan D</option>
+                    <option value="E">Pilihan E</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Bobot Poin Soal</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={formPoints}
+                    onChange={(e) => setFormPoints(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Pembahasan & Langkah Solusi
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Tuliskan rumus dan langkah pengerjaan yang benar agar siswa dapat mempelajarinya saat review..."
+                  value={formExplanation}
+                  onChange={(e) => setFormExplanation(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsQuestionModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 shadow-xs"
+                >
+                  {editingQuestion ? 'Simpan Perubahan Soal' : 'Simpan ke Bank Soal'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
