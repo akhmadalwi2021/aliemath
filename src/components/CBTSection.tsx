@@ -63,8 +63,8 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
   const [editingExam, setEditingExam] = useState<CBTExam | null>(null);
   const [formExamTitle, setFormExamTitle] = useState('');
   const [formExamDesc, setFormExamDesc] = useState('');
-  const [formExamGrade, setFormExamGrade] = useState<CBTExam['gradeLevel']>('Kelas 10');
-  const [formExamSubject, setFormExamSubject] = useState('Matematika Wajib');
+  const [formExamGrade, setFormExamGrade] = useState<CBTExam['gradeLevel']>('Kelas 7');
+  const [formExamSubject, setFormExamSubject] = useState('Matematika');
   const [formExamDuration, setFormExamDuration] = useState(20);
   const [formExamPassing, setFormExamPassing] = useState(75);
   const [formExamIsActive, setFormExamIsActive] = useState(true);
@@ -94,8 +94,8 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
     setEditingExam(null);
     setFormExamTitle('');
     setFormExamDesc('Ujian berbasis komputer (CBT) materi matematika.');
-    setFormExamGrade('Kelas 10');
-    setFormExamSubject('Matematika Wajib');
+    setFormExamGrade('Kelas 7');
+    setFormExamSubject('Matematika');
     setFormExamDuration(20);
     setFormExamPassing(75);
     setFormExamIsActive(true);

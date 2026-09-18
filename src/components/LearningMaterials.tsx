@@ -44,8 +44,8 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
 
   // Form states
   const [formTitle, setFormTitle] = useState('');
-  const [formSubject, setFormSubject] = useState('Matematika Wajib');
-  const [formGrade, setFormGrade] = useState<LearningMaterial['gradeLevel']>('Kelas 10');
+  const [formSubject, setFormSubject] = useState('Matematika');
+  const [formGrade, setFormGrade] = useState<LearningMaterial['gradeLevel']>('Kelas 7');
   const [formChapter, setFormChapter] = useState('');
   const [formSummary, setFormSummary] = useState('');
   const [formContent, setFormContent] = useState('');
@@ -70,8 +70,8 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
   const handleOpenAdd = () => {
     setEditingMaterial(null);
     setFormTitle('');
-    setFormSubject('Matematika Wajib');
-    setFormGrade('Kelas 10');
+    setFormSubject('Matematika');
+    setFormGrade('Kelas 7');
     setFormChapter('Bab 1: ');
     setFormSummary('');
     setFormContent('');
