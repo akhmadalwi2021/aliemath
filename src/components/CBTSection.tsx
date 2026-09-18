@@ -787,9 +787,9 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                 className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold bg-white"
               >
                 <option value="Semua">Semua Kelas</option>
-                <option value="X MIPA 1">X MIPA 1</option>
-                <option value="XI MIPA 2">XI MIPA 2</option>
-                <option value="XII MIPA 3">XII MIPA 3</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
               </select>
             </div>
 
@@ -1054,9 +1054,9 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                     onChange={(e) => setFormExamGrade(e.target.value as any)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
                   >
-                    <option value="Kelas 10">Kelas 10</option>
-                    <option value="Kelas 11">Kelas 11</option>
-                    <option value="Kelas 12">Kelas 12</option>
+                    <option value="Kelas 7">Kelas 7</option>
+                    <option value="Kelas 8">Kelas 8</option>
+                    <option value="Kelas 9">Kelas 9</option>
                     <option value="Semua Kelas">Semua Kelas</option>
                   </select>
                 </div>

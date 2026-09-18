@@ -56,7 +56,7 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
   const [newFormulaExplanation, setNewFormulaExplanation] = useState('');
   const [formAttachment, setFormAttachment] = useState('');
 
-  const grades = ['Semua', 'Kelas 10', 'Kelas 11', 'Kelas 12', 'Umum'];
+  const grades = ['Semua', 'Kelas 7', 'Kelas 8', 'Kelas 9', 'Umum'];
 
   const filteredMaterials = materials.filter((m) => {
     const matchesGrade = selectedGrade === 'Semua' || m.gradeLevel === selectedGrade;
@@ -470,9 +470,9 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
                     onChange={(e) => setFormGrade(e.target.value as any)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
                   >
-                    <option value="Kelas 10">Kelas 10</option>
-                    <option value="Kelas 11">Kelas 11</option>
-                    <option value="Kelas 12">Kelas 12</option>
+                    <option value="Kelas 7">Kelas 7</option>
+                    <option value="Kelas 8">Kelas 8</option>
+                    <option value="Kelas 9">Kelas 9</option>
                     <option value="Umum">Umum</option>
                   </select>
                 </div>

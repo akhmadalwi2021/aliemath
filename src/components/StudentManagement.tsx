@@ -44,7 +44,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [formFullName, setFormFullName] = useState('');
   const [formUsername, setFormUsername] = useState('');
   const [formNisn, setFormNisn] = useState('');
-  const [formClass, setFormClass] = useState('X MIPA 1');
+  const [formClass, setFormClass] = useState('7');
   const [formPassword, setFormPassword] = useState('123');
   const [formStatus, setFormStatus] = useState<'active' | 'inactive'>('active');
 
@@ -64,7 +64,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setFormFullName('');
     setFormUsername('');
     setFormNisn('');
-    setFormClass('X MIPA 1');
+    setFormClass('7');
     setFormPassword('123');
     setFormStatus('active');
     setIsModalOpen(true);
@@ -75,7 +75,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setFormFullName(std.fullName);
     setFormUsername(std.username);
     setFormNisn(std.nisn || '');
-    setFormClass(std.classGroup || 'X MIPA 1');
+    setFormClass(std.classGroup || '7');
     setFormPassword(std.password || '123');
     setFormStatus(std.status);
     setIsModalOpen(true);
@@ -167,9 +167,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold bg-white"
           >
             <option value="Semua">Semua Kelas</option>
-            <option value="X MIPA 1">X MIPA 1</option>
-            <option value="XI MIPA 2">XI MIPA 2</option>
-            <option value="XII MIPA 3">XII MIPA 3</option>
+            <option value="7A">7A</option>
+            <option value="7B">7B</option>
+            <option value="8A">8A</option>
+	    <option value="8B">8B</option>
+	    <option value="9A">9A</option>
+	    <option value="9B">9B</option>
           </select>
         </div>
 
@@ -351,12 +354,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     onChange={(e) => setFormClass(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
                   >
-                    <option value="X MIPA 1">X MIPA 1</option>
-                    <option value="X MIPA 2">X MIPA 2</option>
-                    <option value="XI MIPA 1">XI MIPA 1</option>
-                    <option value="XI MIPA 2">XI MIPA 2</option>
-                    <option value="XII MIPA 1">XII MIPA 1</option>
-                    <option value="XII MIPA 3">XII MIPA 3</option>
+                    <option value="7A">7A</option>
+                    <option value="7B">7B</option>
+                    <option value="8A">8A</option>
+                    <option value="8B">8B</option>
+                    <option value="9A">9A</option>
+                    <option value="9B">9B</option>
                   </select>
                 </div>
                 <div>

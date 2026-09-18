@@ -36,7 +36,7 @@ export interface LearningMaterial {
   id: string;
   title: string;
   subject: string;
-  gradeLevel: 'Kelas 10' | 'Kelas 11' | 'Kelas 12' | 'Umum';
+  gradeLevel: 'Kelas 7' | 'Kelas 8' | 'Kelas 9' | 'Umum';
   chapter: string;
   summary: string;
   content: string;
@@ -70,7 +70,7 @@ export interface CBTExam {
   title: string;
   description: string;
   subject: string;
-  gradeLevel: 'Kelas 10' | 'Kelas 11' | 'Kelas 12' | 'Semua Kelas';
+  gradeLevel: 'Kelas 7' | 'Kelas 8' | 'Kelas 9' | 'Semua Kelas';
   durationMinutes: number;
   totalQuestions: number;
   passingScore: number;
