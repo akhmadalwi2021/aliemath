@@ -33,7 +33,9 @@ import {
   RefreshCw,
   Info,
   GraduationCap,
-  Printer
+  Printer,
+  Save,
+  Sparkles
 } from 'lucide-react';
 import { CBTExam, CBTAttempt, CBTQuestion, CBTQuestionType, ComplexStatement, CBTSessionLock, User, UserRole } from '../types';
 import { CBTStudentLoginModal } from './CBTStudentLoginModal';
@@ -91,7 +93,9 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
   const lockedSessionsCount = cbtSessionLocks.filter((l) => l.isLocked).length;
 
   const [selectedAttemptForReview, setSelectedAttemptForReview] = useState<CBTAttempt | null>(null);
-  const [selectedExamForQuestions, setSelectedExamForQuestions] = useState<CBTExam | null>(null);
+  const [selectedExamIdForQuestions, setSelectedExamIdForQuestions] = useState<string | null>(null);
+  const [questionSubmitMode, setQuestionSubmitMode] = useState<'close' | 'continue'>('close');
+  const [questionSaveNotice, setQuestionSaveNotice] = useState<string | null>(null);
 
   // Admin Exam Form State
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
@@ -208,7 +212,7 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
 
   // Open question modal
   const handleOpenAddQuestion = (exam: CBTExam) => {
-    setSelectedExamForQuestions(exam);
+    setSelectedExamIdForQuestions(exam.id);
     setEditingQuestion(null);
     setFormQuestionType('pg_tunggal');
     setFormQuestionText('');
@@ -226,11 +230,12 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
     ]);
     setFormExplanation('');
     setFormPoints(20);
+    setQuestionSaveNotice(null);
     setIsQuestionModalOpen(true);
   };
 
   const handleOpenEditQuestion = (exam: CBTExam, q: CBTQuestion) => {
-    setSelectedExamForQuestions(exam);
+    setSelectedExamIdForQuestions(exam.id);
     setEditingQuestion(q);
     setFormQuestionType(q.questionType || 'pg_tunggal');
     setFormQuestionText(q.questionText);
@@ -258,24 +263,26 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
     );
     setFormExplanation(q.explanation);
     setFormPoints(q.points || 20);
+    setQuestionSaveNotice(null);
     setIsQuestionModalOpen(true);
   };
 
-  const handleSaveQuestion = (e: React.FormEvent) => {
+  const handleSaveQuestion = (e: React.FormEvent, continueAdding: boolean = false) => {
     e.preventDefault();
-    if (!selectedExamForQuestions || !formQuestionText.trim()) return;
+    const currentExam = exams.find((x) => x.id === selectedExamIdForQuestions);
+    if (!currentExam || !formQuestionText.trim()) return;
 
     // Only options A, B, C, D (4 options strictly, no E)
     const options = [
-      { id: 'A', text: formOptA },
-      { id: 'B', text: formOptB },
-      { id: 'C', text: formOptC },
-      { id: 'D', text: formOptD },
-    ].filter((o) => o.text.trim() !== '');
+      { id: 'A', text: formOptA.trim() },
+      { id: 'B', text: formOptB.trim() },
+      { id: 'C', text: formOptC.trim() },
+      { id: 'D', text: formOptD.trim() },
+    ].filter((o) => o.text !== '');
 
     const validStatements = formStatements.filter((s) => s.statementText.trim() !== '');
 
-    let updatedQuestions: CBTQuestion[] = [...selectedExamForQuestions.questions];
+    let updatedQuestions: CBTQuestion[] = [...(currentExam.questions || [])];
 
     if (editingQuestion) {
       updatedQuestions = updatedQuestions.map((q) =>
@@ -283,41 +290,73 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
           ? {
               ...q,
               questionType: formQuestionType,
-              questionText: formQuestionText,
-              questionFormula: formQuestionFormula || undefined,
+              questionText: formQuestionText.trim(),
+              questionFormula: formQuestionFormula.trim() || undefined,
               options: formQuestionType === 'pg_kompleks' ? [] : options,
               correctOptionId: formQuestionType === 'pg_tunggal' ? formCorrectOpt : undefined,
               correctOptionIds: formQuestionType === 'mcma' ? formCorrectOptIds : undefined,
               statements: formQuestionType === 'pg_kompleks' ? validStatements : undefined,
-              explanation: formExplanation,
-              points: Number(formPoints),
+              explanation: formExplanation.trim(),
+              points: Number(formPoints) || 20,
             }
           : q
       );
     } else {
       const newQ: CBTQuestion = {
-        id: `q_${Date.now()}`,
+        id: `q_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         number: updatedQuestions.length + 1,
         questionType: formQuestionType,
-        questionText: formQuestionText,
-        questionFormula: formQuestionFormula || undefined,
+        questionText: formQuestionText.trim(),
+        questionFormula: formQuestionFormula.trim() || undefined,
         options: formQuestionType === 'pg_kompleks' ? [] : options,
         correctOptionId: formQuestionType === 'pg_tunggal' ? formCorrectOpt : undefined,
         correctOptionIds: formQuestionType === 'mcma' ? formCorrectOptIds : undefined,
         statements: formQuestionType === 'pg_kompleks' ? validStatements : undefined,
-        explanation: formExplanation,
-        points: Number(formPoints),
+        explanation: formExplanation.trim(),
+        points: Number(formPoints) || 20,
       };
       updatedQuestions.push(newQ);
     }
 
-    onUpdateQuestions(selectedExamForQuestions.id, updatedQuestions);
-    setIsQuestionModalOpen(false);
+    // Renumber sequentially
+    updatedQuestions = updatedQuestions.map((q, idx) => ({
+      ...q,
+      number: idx + 1,
+    }));
+
+    onUpdateQuestions(currentExam.id, updatedQuestions);
+
+    if (continueAdding && !editingQuestion) {
+      const savedNumber = updatedQuestions.length;
+      setQuestionSaveNotice(
+        `✓ Soal #${savedNumber} berhasil disimpan ke paket "${currentExam.title}"! Form telah siap untuk input soal ke-${savedNumber + 1}.`
+      );
+      // Reset fields for consecutive input
+      setFormQuestionText('');
+      setFormQuestionFormula('');
+      setFormOptA('');
+      setFormOptB('');
+      setFormOptC('');
+      setFormOptD('');
+      setFormExplanation('');
+      setFormCorrectOpt('A');
+      setFormCorrectOptIds(['A']);
+      setFormStatements([
+        { id: `stmt_${Date.now()}_1`, statementText: '', correctValue: 'benar' },
+        { id: `stmt_${Date.now()}_2`, statementText: '', correctValue: 'salah' },
+        { id: `stmt_${Date.now()}_3`, statementText: '', correctValue: 'benar' },
+      ]);
+    } else {
+      setQuestionSaveNotice(null);
+      setIsQuestionModalOpen(false);
+    }
   };
 
   const handleDeleteQuestion = (exam: CBTExam, qId: string) => {
     if (!confirm('Hapus butir soal ini dari bank soal?')) return;
-    const updated = exam.questions.filter((q) => q.id !== qId);
+    const updated = exam.questions
+      .filter((q) => q.id !== qId)
+      .map((q, idx) => ({ ...q, number: idx + 1 }));
     onUpdateQuestions(exam.id, updated);
   };
 
@@ -827,20 +866,31 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <button
-                    onClick={() => {
-                      setSelectedExamForQuestions(exam);
-                      setActiveTab('question_bank');
-                    }}
-                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1"
-                  >
-                    Kelola Soal ({exam.questions.length}) <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedExamIdForQuestions(exam.id);
+                        setBankGradeFilter(exam.gradeLevel === 'Semua Kelas' ? 'Semua' : exam.gradeLevel);
+                        setActiveTab('question_bank');
+                      }}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      Kelola Soal ({exam.questions.length}) <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleOpenAddQuestion(exam)}
+                      className="text-[11px] font-bold px-2 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Tambah Butir Soal Baru Langsung ke Paket Ini"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Tambah Soal</span>
+                    </button>
+                  </div>
 
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleOpenEditExam(exam)}
-                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                       title="Edit Setting Ujian"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
@@ -851,7 +901,7 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                           onDeleteExam(exam.id);
                         }
                       }}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                       title="Hapus Paket"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -871,9 +921,12 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
           return ex.gradeLevel === bankGradeFilter || ex.gradeLevel === 'Semua Kelas';
         });
 
-        const activeExam = (selectedExamForQuestions && gradeFilteredExams.some((e) => e.id === selectedExamForQuestions.id))
-          ? selectedExamForQuestions
-          : gradeFilteredExams[0] || null;
+        // Always resolve activeExam from latest exams state so question count and array are always fresh
+        const activeExam = (selectedExamIdForQuestions && gradeFilteredExams.find((e) => e.id === selectedExamIdForQuestions))
+          || (selectedExamIdForQuestions && exams.find((e) => e.id === selectedExamIdForQuestions))
+          || gradeFilteredExams[0]
+          || exams[0]
+          || null;
 
         const displayedQuestions = (activeExam?.questions || []).filter((q) => {
           if (bankFormulaFilter === 'formula_only' && !q.questionFormula) {
@@ -933,7 +986,7 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                         setBankGradeFilter(grade);
                         const matchedExams = exams.filter((e) => grade === 'Semua' || e.gradeLevel === grade || e.gradeLevel === 'Semua Kelas');
                         if (matchedExams.length > 0) {
-                          setSelectedExamForQuestions(matchedExams[0]);
+                          setSelectedExamIdForQuestions(matchedExams[0].id);
                         }
                       }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -957,8 +1010,7 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                   <select
                     value={activeExam?.id || ''}
                     onChange={(e) => {
-                      const target = exams.find((x) => x.id === e.target.value);
-                      if (target) setSelectedExamForQuestions(target);
+                      setSelectedExamIdForQuestions(e.target.value);
                     }}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
@@ -2648,22 +2700,62 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
       )}
 
       {/* Admin Add/Edit Question Modal */}
-      {isQuestionModalOpen && selectedExamForQuestions && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-100">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">
-                {editingQuestion ? 'Edit Butir Soal' : 'Tambah Soal ke ' + selectedExamForQuestions.title}
-              </h3>
-              <button
-                onClick={() => setIsQuestionModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {isQuestionModalOpen && (() => {
+        const modalTargetExam = exams.find((e) => e.id === selectedExamIdForQuestions) || null;
+        if (!modalTargetExam) return null;
+        const currentQuestionsCount = modalTargetExam.questions?.length || 0;
+        const nextQuestionNumber = currentQuestionsCount + 1;
 
-            <form onSubmit={handleSaveQuestion} className="space-y-4 mt-4 text-xs">
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-100">
+              <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[10px] font-black">
+                      {modalTargetExam.gradeLevel}
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-500">
+                      {editingQuestion ? `Edit Butir Soal #${editingQuestion.number || ''}` : `Input Butir Soal #${nextQuestionNumber}`}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mt-1">
+                    {editingQuestion ? 'Edit Butir Soal CBT' : `Tambah Soal Baru ke ${modalTargetExam.title}`}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Paket: <strong className="text-slate-800">{modalTargetExam.title}</strong> • Total tersimpan: <strong className="text-blue-700">{currentQuestionsCount} butir</strong> (bebas tambah tanpa batasan)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsQuestionModalOpen(false);
+                    setQuestionSaveNotice(null);
+                  }}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Real-time notification banner inside modal */}
+              {questionSaveNotice && (
+                <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 text-emerald-900 text-xs font-semibold">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{questionSaveNotice}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setQuestionSaveNotice(null)}
+                    className="text-emerald-700 hover:text-emerald-950 p-1 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              <form onSubmit={(e) => handleSaveQuestion(e, questionSubmitMode === 'continue')} className="space-y-4 mt-4 text-xs">
               {/* Bentuk Soal Selector */}
               <div>
                 <label className="block font-bold text-slate-800 mb-1.5">Bentuk Soal CBT</label>
@@ -2973,25 +3065,57 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsQuestionModalOpen(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 shadow-xs"
-                >
-                  {editingQuestion ? 'Simpan Perubahan Soal' : 'Simpan ke Bank Soal'}
-                </button>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                <div className="text-[11px] text-slate-500 flex items-center gap-1.5 self-start sm:self-auto">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>Dapat menambah butir soal sebanyak mungkin tanpa batasan.</span>
+                </div>
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsQuestionModalOpen(false);
+                      setQuestionSaveNotice(null);
+                    }}
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold cursor-pointer text-xs"
+                  >
+                    Batal
+                  </button>
+                  {editingQuestion ? (
+                    <button
+                      type="submit"
+                      onClick={() => setQuestionSubmitMode('close')}
+                      className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-xs cursor-pointer text-xs flex items-center gap-1.5"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Simpan Perubahan Soal</span>
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="submit"
+                        onClick={() => setQuestionSubmitMode('close')}
+                        className="px-3.5 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold cursor-pointer text-xs"
+                      >
+                        Simpan & Tutup
+                      </button>
+                      <button
+                        type="submit"
+                        onClick={() => setQuestionSubmitMode('continue')}
+                        className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-xs cursor-pointer text-xs flex items-center gap-1.5"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Simpan & Tambah Soal Berikutnya (+1)</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </form>
           </div>
         </div>
-      )}
+      );
+    })()}
       {/* Student Login Modal for starting CBT Exam */}
       <CBTStudentLoginModal
         isOpen={Boolean(loginModalExam)}
