@@ -30,13 +30,40 @@ import { Database, GitBranch, Shield, GraduationCap, RefreshCw, CheckCircle2 } f
 
 export default function App() {
   const [database, setDatabase] = useState<AppDatabase>(() => loadDatabase());
-  const [currentUser, setCurrentUser] = useState<User>(() => {
-    // Default to admin so user immediately sees all administrative tools
-    return database.users.find((u) => u.role === 'admin') || database.users[0];
+
+  const [adminUser, setAdminUser] = useState<User | null>(() => {
+    try {
+      const savedId = localStorage.getItem('aliemath_admin_id');
+      if (savedId) {
+        const found = database.users.find(
+          (u) => u.id === savedId && u.role === 'admin' && u.status === 'active'
+        );
+        if (found) return found;
+      }
+    } catch {
+      // Ignored
+    }
+    return null;
+  });
+
+  const [cbtStudent, setCbtStudent] = useState<User | null>(() => {
+    try {
+      const savedStudentId = sessionStorage.getItem('aliemath_cbt_student_id');
+      if (savedStudentId) {
+        const found = database.users.find(
+          (u) => u.id === savedStudentId && u.role === 'student' && u.status === 'active'
+        );
+        if (found) return found;
+      }
+    } catch {
+      // Ignored
+    }
+    return null;
   });
 
   const [activeTab, setActiveTab] = useState<TabType>('news');
   const [activeCBTExam, setActiveCBTExam] = useState<CBTExam | null>(null);
+  const [activeCBTStudent, setActiveCBTStudent] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
 
@@ -45,18 +72,53 @@ export default function App() {
     saveDatabase(database);
   }, [database]);
 
-  // Quick Role Switcher
-  const handleSwitchQuickRole = (targetRole: 'admin' | 'student') => {
-    const user = database.users.find((u) => u.role === targetRole);
-    if (user) {
-      setCurrentUser(user);
+  // Derived current active user
+  const currentUser: User = adminUser || cbtStudent || {
+    id: 'guest',
+    username: 'tamu',
+    fullName: 'Pengunjung',
+    role: 'student',
+    status: 'active',
+    createdAt: '2026-01-01',
+  };
+
+  const handleAdminLogin = (user: User) => {
+    setAdminUser(user);
+    try {
+      localStorage.setItem('aliemath_admin_id', user.id);
+    } catch {
+      // Ignored
     }
   };
 
-  // Switch to specific student
-  const handleSwitchToStudent = (student: User) => {
-    setCurrentUser(student);
-    setActiveTab('cbt');
+  const handleAdminLogout = () => {
+    setAdminUser(null);
+    try {
+      localStorage.removeItem('aliemath_admin_id');
+    } catch {
+      // Ignored
+    }
+    if (activeTab === 'students' || activeTab === 'admins') {
+      setActiveTab('news');
+    }
+  };
+
+  const handleCbtStudentLogin = (student: User) => {
+    setCbtStudent(student);
+    try {
+      sessionStorage.setItem('aliemath_cbt_student_id', student.id);
+    } catch {
+      // Ignored
+    }
+  };
+
+  const handleCbtStudentLogout = () => {
+    setCbtStudent(null);
+    try {
+      sessionStorage.removeItem('aliemath_cbt_student_id');
+    } catch {
+      // Ignored
+    }
   };
 
   // ---------------- News Actions ----------------
@@ -361,8 +423,8 @@ export default function App() {
       ...prev,
       users: prev.users.map((u) => (u.id === adminId ? { ...u, password: newPassword } : u)),
     }));
-    if (currentUser.id === adminId) {
-      setCurrentUser((prev) => ({ ...prev, password: newPassword }));
+    if (adminUser?.id === adminId) {
+      setAdminUser((prev) => (prev ? { ...prev, password: newPassword } : null));
     }
   };
 
@@ -380,10 +442,13 @@ export default function App() {
       ...prev,
       users: prev.users.filter((u) => u.id !== adminId),
     }));
+    if (adminUser?.id === adminId) {
+      handleAdminLogout();
+    }
   };
 
   const handleSwitchAdminUser = (admin: User) => {
-    setCurrentUser(admin);
+    handleAdminLogin(admin);
   };
 
   const handleUpdateGitHubConfig = (config: GitHubSyncConfig) => {
@@ -401,14 +466,11 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
       {/* Top Navbar */}
       <Navbar
-        currentUser={currentUser}
-        onOpenAuth={() => setIsAuthModalOpen(true)}
-        onLogout={() => {
-          handleSwitchQuickRole(currentUser.role === 'admin' ? 'student' : 'admin');
-        }}
+        adminUser={adminUser}
+        onOpenAdminLogin={() => setIsAuthModalOpen(true)}
+        onLogout={handleAdminLogout}
         onOpenGitHubSync={() => setIsGitHubModalOpen(true)}
         isGitHubConnected={Boolean(database.gitHubConfig?.token && database.gitHubConfig?.owner)}
-        onSwitchQuickRole={handleSwitchQuickRole}
       />
 
       {/* Main Layout: Sidebar on Left + Dynamic Content on Center */}
@@ -454,7 +516,23 @@ export default function App() {
               attempts={database.attempts}
               cbtSessionLocks={database.cbtSessionLocks || []}
               currentUser={currentUser}
-              onStartExam={(exam) => setActiveCBTExam(exam)}
+              allUsers={database.users}
+              cbtStudent={cbtStudent}
+              onCbtStudentLogin={handleCbtStudentLogin}
+              onCbtStudentLogout={handleCbtStudentLogout}
+              onStartExam={(exam, student) => {
+                const examStudent =
+                  student ||
+                  cbtStudent ||
+                  (currentUser.role === 'student' && currentUser.id !== 'guest' ? currentUser : null);
+                if (examStudent) {
+                  setActiveCBTStudent(examStudent);
+                  setActiveCBTExam(exam);
+                } else if (currentUser.role === 'admin') {
+                  setActiveCBTStudent(currentUser);
+                  setActiveCBTExam(exam);
+                }
+              }}
               onAddExam={handleAddExam}
               onEditExam={handleEditExam}
               onDeleteExam={handleDeleteExam}
@@ -473,7 +551,6 @@ export default function App() {
               onAddStudent={handleAddStudent}
               onEditStudent={handleEditStudent}
               onDeleteStudent={handleDeleteStudent}
-              onSwitchToStudent={handleSwitchToStudent}
             />
           )}
 
@@ -549,19 +626,31 @@ export default function App() {
       {activeCBTExam && (
         <CBTExamModal
           exam={activeCBTExam}
-          student={currentUser}
+          student={activeCBTStudent || cbtStudent || currentUser}
           initialSessionLock={(database.cbtSessionLocks || []).find(
-            (l) => l.studentId === currentUser.id && l.examId === activeCBTExam.id
+            (l) =>
+              l.studentId === (activeCBTStudent || cbtStudent || currentUser).id &&
+              l.examId === activeCBTExam.id
           )}
           onUpdateSessionProgress={(progress) =>
-            handleUpdateSessionProgress(activeCBTExam.id, currentUser.id, progress)
+            handleUpdateSessionProgress(
+              activeCBTExam.id,
+              (activeCBTStudent || cbtStudent || currentUser).id,
+              progress
+            )
           }
           onLockExamSession={handleLockExamSession}
           onUnlockExamSession={(sessionId) =>
-            handleUnlockExamSession(sessionId, currentUser.fullName)
+            handleUnlockExamSession(
+              sessionId,
+              (activeCBTStudent || cbtStudent || currentUser).fullName
+            )
           }
           onCompleteExam={handleCompleteExamAttempt}
-          onClose={() => setActiveCBTExam(null)}
+          onClose={() => {
+            setActiveCBTExam(null);
+            setActiveCBTStudent(null);
+          }}
         />
       )}
 
@@ -574,13 +663,13 @@ export default function App() {
         onUpdateConfig={handleUpdateGitHubConfig}
       />
 
-      {/* Authentication & Role Switcher Modal */}
+      {/* Authentication Modal - Khusus Guru / Admin */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         users={database.users}
         onLoginSuccess={(user) => {
-          setCurrentUser(user);
+          handleAdminLogin(user);
         }}
       />
     </div>

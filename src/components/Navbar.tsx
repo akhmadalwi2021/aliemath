@@ -1,23 +1,21 @@
 import React from 'react';
-import { BookOpen, User as UserIcon, Shield, GraduationCap, GitBranch, LogIn, LogOut, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Shield, GitBranch, LogIn, LogOut, CheckCircle2 } from 'lucide-react';
 import { User } from '../types';
 
 interface NavbarProps {
-  currentUser: User;
-  onOpenAuth: () => void;
+  adminUser: User | null;
+  onOpenAdminLogin: () => void;
   onLogout: () => void;
   onOpenGitHubSync: () => void;
   isGitHubConnected: boolean;
-  onSwitchQuickRole: (role: 'admin' | 'student') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  currentUser,
-  onOpenAuth,
+  adminUser,
+  onOpenAdminLogin,
   onLogout,
   onOpenGitHubSync,
   isGitHubConnected,
-  onSwitchQuickRole,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all">
@@ -30,22 +28,26 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-lg text-slate-900 tracking-tight">Aliemath<span className="text-blue-600 font-black">.my.id</span></span>
+                <span className="font-bold text-lg text-slate-900 tracking-tight">
+                  Aliemath<span className="text-blue-600 font-black">.my.id</span>
+                </span>
                 <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                   CBT & EduPortal
                 </span>
               </div>
-              <p className="text-xs text-slate-500 hidden sm:block">Platform Pembelajaran Matematika & CBT Terintegrasi</p>
+              <p className="text-xs text-slate-500 hidden sm:block">
+                Platform Pembelajaran Matematika & CBT Terintegrasi
+              </p>
             </div>
           </div>
 
           {/* Right Controls */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             {/* GitHub Database Sync Button */}
             <button
               id="btn-github-sync"
               onClick={onOpenGitHubSync}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
                 isGitHubConnected
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                   : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
@@ -57,70 +59,45 @@ export const Navbar: React.FC<NavbarProps> = ({
               {isGitHubConnected && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
             </button>
 
-            {/* Quick Demo Switcher */}
-            <div className="hidden lg:flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
-              <button
-                onClick={() => onSwitchQuickRole('admin')}
-                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                  currentUser.role === 'admin'
-                    ? 'bg-white text-indigo-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Mode Guru (Admin)
-              </button>
-              <button
-                onClick={() => onSwitchQuickRole('student')}
-                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                  currentUser.role === 'student'
-                    ? 'bg-white text-blue-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Mode Siswa
-              </button>
-            </div>
+            {/* Admin Login / Admin Profile in Top Right Corner */}
+            {adminUser ? (
+              <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-purple-50 border border-purple-200">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-700 text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                    <Shield className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="text-left hidden md:block">
+                    <div className="text-xs font-bold text-purple-950 line-clamp-1 max-w-[140px]">
+                      {adminUser.fullName}
+                    </div>
+                    <div className="text-[10px] text-purple-700 font-medium">
+                      {adminUser.isSuperAdmin ? 'Guru Utama (Super Admin)' : 'Guru Pengampu'}
+                    </div>
+                  </div>
+                </div>
 
-            {/* Current User Badge & Profile */}
-            <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${
-                    currentUser.role === 'admin'
-                      ? 'bg-gradient-to-tr from-purple-600 to-indigo-700'
-                      : 'bg-gradient-to-tr from-blue-600 to-cyan-600'
-                  }`}
+                {/* Logout Button */}
+                <button
+                  id="btn-admin-logout"
+                  onClick={onLogout}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                  title="Keluar dari Akun Guru"
                 >
-                  {currentUser.role === 'admin' ? (
-                    <Shield className="w-4 h-4" />
-                  ) : (
-                    <GraduationCap className="w-4 h-4" />
-                  )}
-                </div>
-                <div className="text-left hidden md:block">
-                  <div className="text-xs font-semibold text-slate-800 line-clamp-1 max-w-[140px]">
-                    {currentUser.fullName}
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-medium">
-                    {currentUser.role === 'admin'
-                      ? currentUser.isSuperAdmin
-                        ? 'Guru Utama (Super Admin)'
-                        : 'Guru Pengampu (Admin)'
-                      : `Siswa (${currentUser.classGroup || 'Aktif'})`}
-                  </div>
-                </div>
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Keluar</span>
+                </button>
               </div>
-
-              {/* Login / Switch Account Button */}
+            ) : (
               <button
-                id="btn-user-auth"
-                onClick={onOpenAuth}
-                className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-                title="Ganti Akun / Login"
+                id="btn-admin-login"
+                onClick={onOpenAdminLogin}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-sm shadow-indigo-500/20 transition-all cursor-pointer"
+                title="Login Khusus Guru / Administrator"
               >
-                <LogIn className="w-4 h-4" />
+                <Shield className="w-4 h-4" />
+                <span>Login Admin (Guru)</span>
               </button>
-            </div>
+            )}
           </div>
         </div>
       </div>

@@ -530,22 +530,6 @@ export const CBTExamModal: React.FC<CBTExamModalProps> = ({
               <RefreshCw className="w-4 h-4" />
               <span>Periksa Status Buka Blokir (Refresh)</span>
             </button>
-
-            {/* Quick Simulation Button for Teacher/Testing Demo */}
-            {onUnlockExamSession && (
-              <button
-                onClick={() => {
-                  const sessionId = `lock_${student.id}_${exam.id}`;
-                  onUnlockExamSession(sessionId);
-                  setIsLocked(false);
-                  enterFullscreen();
-                }}
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-medium text-xs border border-slate-700 flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <Unlock className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Simulasi Admin Buka Kunci (Mode Guru / Demo)</span>
-              </button>
-            )}
           </div>
         </div>
       </div>

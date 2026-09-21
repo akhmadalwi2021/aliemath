@@ -31,16 +31,22 @@ import {
   ShieldAlert,
   AlertOctagon,
   RefreshCw,
-  Info
+  Info,
+  GraduationCap
 } from 'lucide-react';
 import { CBTExam, CBTAttempt, CBTQuestion, CBTQuestionType, ComplexStatement, CBTSessionLock, User, UserRole } from '../types';
+import { CBTStudentLoginModal } from './CBTStudentLoginModal';
 
 interface CBTSectionProps {
   exams: CBTExam[];
   attempts: CBTAttempt[];
   cbtSessionLocks?: CBTSessionLock[];
   currentUser: User;
-  onStartExam: (exam: CBTExam) => void;
+  allUsers?: User[];
+  cbtStudent?: User | null;
+  onCbtStudentLogin?: (student: User, exam: CBTExam) => void;
+  onCbtStudentLogout?: () => void;
+  onStartExam: (exam: CBTExam, student?: User) => void;
   onAddExam: (newExam: Omit<CBTExam, 'id'>) => void;
   onEditExam: (exam: CBTExam) => void;
   onDeleteExam: (id: string) => void;
@@ -54,6 +60,10 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
   attempts,
   cbtSessionLocks = [],
   currentUser,
+  allUsers = [],
+  cbtStudent,
+  onCbtStudentLogin,
+  onCbtStudentLogout,
   onStartExam,
   onAddExam,
   onEditExam,
@@ -68,6 +78,10 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
   const [activeTab, setActiveTab] = useState<string>(
     currentUser.role === 'admin' ? 'manage_exams' : 'active_tasks'
   );
+
+  const [loginModalExam, setLoginModalExam] = useState<CBTExam | null>(null);
+
+  const effectiveStudent = cbtStudent || (currentUser.role === 'student' && currentUser.id !== 'guest' ? currentUser : null);
 
   const [searchLockQuery, setSearchLockQuery] = useState('');
   const [filterLockStatus, setFilterLockStatus] = useState<'all' | 'locked' | 'unlocked'>('all');
@@ -112,7 +126,7 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
   const [resultsClassFilter, setResultsClassFilter] = useState('Semua');
 
   // Student specific attempts
-  const myAttempts = attempts.filter((att) => att.studentId === currentUser.id);
+  const myAttempts = effectiveStudent ? attempts.filter((att) => att.studentId === effectiveStudent.id) : [];
 
   // Handle open add exam
   const handleOpenAddExam = () => {
@@ -436,6 +450,45 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
       {/* 1. Tugas Terkini */}
       {currentUser.role === 'student' && activeTab === 'active_tasks' && (
         <div className="space-y-4">
+          {effectiveStudent ? (
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-xs">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-blue-950">Peserta CBT: {effectiveStudent.fullName}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-200/80 text-blue-800 font-semibold">
+                      Kelas {effectiveStudent.classGroup}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-blue-700/80">
+                    NISN: {effectiveStudent.nisn || '-'} • Sesi: {effectiveStudent.session || 'Sesi 1'}
+                  </div>
+                </div>
+              </div>
+              {onCbtStudentLogout && (
+                <button
+                  id="btn-logout-cbt-student"
+                  onClick={onCbtStudentLogout}
+                  className="px-3.5 py-1.5 rounded-xl bg-white border border-blue-200 text-blue-700 hover:bg-blue-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                >
+                  Keluar Sesi Siswa
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-start sm:items-center gap-3 text-slate-700 text-xs">
+              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+                <Info className="w-4 h-4" />
+              </div>
+              <div className="text-xs leading-relaxed">
+                <strong className="text-slate-900">Portal Ulangan & Ujian CBT Siswa:</strong> Siswa hanya login saat hendak mengerjakan soal ujian CBT. Klik tombol <strong>"Mulai Ujian CBT"</strong> pada paket ujian di bawah untuk memasukkan akun yang telah dibuatkan oleh Guru.
+              </div>
+            </div>
+          )}
+
           <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
             Paket Ujian CBT Aktif Siap Dikerjakan
           </div>
@@ -446,9 +499,9 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
               .map((exam) => {
                 const existingAttempt = myAttempts.find((a) => a.examId === exam.id);
                 const hasTaken = Boolean(existingAttempt);
-                const studentLock = cbtSessionLocks.find(
-                  (l) => l.studentId === currentUser.id && l.examId === exam.id && l.isLocked
-                );
+                const studentLock = effectiveStudent ? cbtSessionLocks.find(
+                  (l) => l.studentId === effectiveStudent.id && l.examId === exam.id && l.isLocked
+                ) : null;
 
                 return (
                   <div
@@ -529,8 +582,14 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
 
                       <button
                         id={`btn-exam-${exam.id}`}
-                        onClick={() => onStartExam(exam)}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors ${
+                        onClick={() => {
+                          if (effectiveStudent) {
+                            onStartExam(exam, effectiveStudent);
+                          } else {
+                            setLoginModalExam(exam);
+                          }
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
                           studentLock
                             ? 'bg-rose-600 text-white hover:bg-rose-700 shadow-sm shadow-rose-500/20'
                             : hasTaken
@@ -2164,6 +2223,20 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
           </div>
         </div>
       )}
+      {/* Student Login Modal for starting CBT Exam */}
+      <CBTStudentLoginModal
+        isOpen={Boolean(loginModalExam)}
+        exam={loginModalExam}
+        users={allUsers}
+        onClose={() => setLoginModalExam(null)}
+        onLoginSuccess={(student, targetExam) => {
+          if (onCbtStudentLogin) {
+            onCbtStudentLogin(student, targetExam);
+          }
+          onStartExam(targetExam, student);
+          setLoginModalExam(null);
+        }}
+      />
     </div>
   );
 };

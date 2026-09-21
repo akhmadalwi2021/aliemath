@@ -54,19 +54,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {userRole === 'admin' ? (
               <>
                 <Shield className="w-4 h-4 text-purple-700" />
-                <span>Panel Administrator</span>
+                <span>Panel Guru (Admin)</span>
               </>
             ) : (
               <>
                 <GraduationCap className="w-4 h-4 text-blue-700" />
-                <span>Portal Siswa</span>
+                <span>Portal Aliemath</span>
               </>
             )}
           </div>
           <p className="text-[11px] opacity-80 leading-relaxed">
             {userRole === 'admin'
               ? 'Akses penuh: Tambah materi, kelola bank soal CBT, dan registrasi siswa.'
-              : 'Akses belajar: Baca materi, kerjakan tugas terkini, dan cek nilai CBT.'}
+              : 'Baca materi, pantau berita, dan ikuti ujian CBT dengan akun dari Guru.'}
           </p>
         </div>
 

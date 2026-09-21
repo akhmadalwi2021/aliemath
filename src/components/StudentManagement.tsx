@@ -32,7 +32,6 @@ interface StudentManagementProps {
   onAddStudent: (newStudent: Omit<User, 'id' | 'role' | 'createdAt'>) => void;
   onEditStudent: (student: User) => void;
   onDeleteStudent: (id: string) => void;
-  onSwitchToStudent: (student: User) => void;
 }
 
 export const StudentManagement: React.FC<StudentManagementProps> = ({
@@ -43,7 +42,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   onAddStudent,
   onEditStudent,
   onDeleteStudent,
-  onSwitchToStudent,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClass, setSelectedClass] = useState('Semua');
@@ -335,14 +333,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             <span>Buka CBT</span>
                           </button>
                         )}
-                        <button
-                          onClick={() => onSwitchToStudent(std)}
-                          className="px-2 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 text-[11px] font-bold flex items-center gap-1 transition-colors"
-                          title="Uji Login Sebagai Siswa Ini"
-                        >
-                          <LogIn className="w-3 h-3" />
-                          <span>Login Siswa</span>
-                        </button>
                         <button
                           onClick={() => handleOpenEdit(std)}
                           className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md"
