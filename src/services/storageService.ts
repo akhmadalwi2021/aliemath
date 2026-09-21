@@ -1,8 +1,18 @@
-import { AppDatabase, GitHubSyncConfig } from '../types';
+import { AppDatabase, GitHubSyncConfig, PrintSignatureSettings } from '../types';
 import { INITIAL_DATABASE } from '../data/initialData';
 
 const STORAGE_KEY = 'aliemath_db_v2';
 const LEGACY_STORAGE_KEY = 'aliemath_db_v1';
+const SERVER_SYNC_TIMESTAMP_KEY = 'aliemath_last_sync_timestamp';
+
+export const DEFAULT_PRINT_SETTINGS: PrintSignatureSettings = {
+  headmasterName: 'Drs. H. Mulyadi, M.Pd',
+  headmasterNip: '19740512 199903 1 004',
+  teacherName: 'Akhmad Alwi, S.Pd',
+  teacherNip: '19850314 201101 1 008',
+  city: 'Banjarmasin',
+  dateStr: '',
+};
 
 export function loadDatabase(): AppDatabase {
   try {
@@ -31,7 +41,7 @@ export function loadDatabase(): AppDatabase {
       };
     });
 
-    // Normalize exams: ensure options are only A, B, C, D and questionType is defined
+    // Normalize exams: ensure options are properly formatted
     const exams = (parsed.exams || INITIAL_DATABASE.exams).map((exam: any) => ({
       ...exam,
       questions: (exam.questions || []).map((q: any) => {
@@ -50,42 +60,20 @@ export function loadDatabase(): AppDatabase {
       }),
     }));
 
-    // Ensure seed exams exist
-    const existingExamIds = new Set(exams.map((e: any) => e.id));
-    INITIAL_DATABASE.exams.forEach((seedExam) => {
-      if (!existingExamIds.has(seedExam.id)) {
-        exams.push(seedExam);
-      }
-    });
-
-    // Ensure seed users exist
-    const existingUserIds = new Set(users.map((u: any) => u.id));
-    INITIAL_DATABASE.users.forEach((seedUser) => {
-      if (!existingUserIds.has(seedUser.id)) {
-        users.push(seedUser);
-      }
-    });
-
     const attempts = [...(parsed.attempts || INITIAL_DATABASE.attempts)];
-    const existingAttemptIds = new Set(attempts.map((a: any) => a.id));
-    INITIAL_DATABASE.attempts.forEach((seedAtt) => {
-      if (!existingAttemptIds.has(seedAtt.id)) {
-        attempts.push(seedAtt);
-      }
-    });
 
     const db: AppDatabase = {
-      users,
+      users: users.length > 0 ? users : INITIAL_DATABASE.users,
       news: parsed.news || INITIAL_DATABASE.news,
       materials: parsed.materials || INITIAL_DATABASE.materials,
-      exams,
+      exams: exams.length > 0 ? exams : INITIAL_DATABASE.exams,
       attempts,
       cbtSessionLocks: parsed.cbtSessionLocks || [],
       gitHubConfig: parsed.gitHubConfig || INITIAL_DATABASE.gitHubConfig,
+      printSettings: parsed.printSettings || DEFAULT_PRINT_SETTINGS,
+      lastUpdatedAt: parsed.lastUpdatedAt || new Date().toISOString(),
     };
 
-    // Resave to new key
-    saveDatabase(db);
     return db;
   } catch (err) {
     console.error('Failed to load database from localStorage, falling back to initial data:', err);
@@ -95,9 +83,99 @@ export function loadDatabase(): AppDatabase {
 
 export function saveDatabase(db: AppDatabase): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    const dataWithTimestamp: AppDatabase = {
+      ...db,
+      lastUpdatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataWithTimestamp));
   } catch (err) {
     console.error('Failed to save database to localStorage:', err);
+  }
+}
+
+/**
+ * Syncs the current database to the server /api/database
+ * This ensures changes made from PC immediately persist and appear on mobile phones!
+ */
+export async function syncDatabaseToServer(db: AppDatabase): Promise<{ success: boolean; updatedAt?: string; message: string }> {
+  try {
+    // 1. Always save locally first for instant offline responsiveness
+    saveDatabase(db);
+
+    // 2. Transmit to server API
+    const res = await fetch('/api/database', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ data: db }),
+    });
+
+    if (!res.ok) {
+      return {
+        success: false,
+        message: `Server returned status ${res.status}`,
+      };
+    }
+
+    const json = await res.json();
+    if (json.updatedAt) {
+      localStorage.setItem(SERVER_SYNC_TIMESTAMP_KEY, json.updatedAt);
+    }
+
+    return {
+      success: true,
+      updatedAt: json.updatedAt,
+      message: 'Berhasil disinkronkan ke server & perangkat lain!',
+    };
+  } catch (err: any) {
+    // Silently handle if offline or static preview
+    console.warn('[Sync] Could not reach server /api/database (offline or static host):', err?.message);
+    return {
+      success: false,
+      message: 'Tersimpan di penyimpanan lokal browser.',
+    };
+  }
+}
+
+/**
+ * Fetches the central database from the server /api/database
+ * Mobile phones / other browsers use this to get the latest materials, CBT questions, and attempts!
+ */
+export async function fetchServerDatabase(): Promise<{ success: boolean; data?: AppDatabase; updatedAt?: string }> {
+  try {
+    const res = await fetch('/api/database', {
+      cache: 'no-cache',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!res.ok) {
+      return { success: false };
+    }
+
+    const json = await res.json();
+    if (json.success && json.data) {
+      const serverDb = json.data as AppDatabase;
+      // Ensure required arrays exist
+      if (Array.isArray(serverDb.materials) && Array.isArray(serverDb.exams)) {
+        // Update localStorage with the latest server data
+        saveDatabase(serverDb);
+        if (json.updatedAt) {
+          localStorage.setItem(SERVER_SYNC_TIMESTAMP_KEY, json.updatedAt);
+        }
+        return {
+          success: true,
+          data: serverDb,
+          updatedAt: json.updatedAt,
+        };
+      }
+    }
+    return { success: false };
+  } catch (err: any) {
+    console.warn('[Sync] Failed to fetch server database:', err?.message);
+    return { success: false };
   }
 }
 
@@ -116,6 +194,9 @@ export function exportDatabaseAsJson(db: AppDatabase): void {
 }
 
 export function resetDatabaseToDefault(): AppDatabase {
+  try {
+    fetch('/api/database/reset', { method: 'POST' }).catch(() => {});
+  } catch {}
   saveDatabase(INITIAL_DATABASE);
   return INITIAL_DATABASE;
 }
@@ -151,7 +232,6 @@ export async function syncDatabaseWithGitHub(
 
     // 2. Commit updated JSON to GitHub
     const contentPayload = JSON.stringify(db, null, 2);
-    // encode to UTF-8 base64
     const base64Content = btoa(unescape(encodeURIComponent(contentPayload)));
 
     const putRes = await fetch(url, {

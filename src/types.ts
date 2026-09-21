@@ -160,6 +160,15 @@ export interface CBTSessionLock {
   updatedAt: string;
 }
 
+export interface PrintSignatureSettings {
+  headmasterName: string;
+  headmasterNip: string;
+  teacherName: string;
+  teacherNip: string;
+  city?: string;
+  dateStr?: string;
+}
+
 export interface AppDatabase {
   users: User[];
   news: NewsItem[];
@@ -168,5 +177,7 @@ export interface AppDatabase {
   attempts: CBTAttempt[];
   cbtSessionLocks?: CBTSessionLock[];
   gitHubConfig?: GitHubSyncConfig;
+  printSettings?: PrintSignatureSettings;
+  lastUpdatedAt?: string;
 }
 

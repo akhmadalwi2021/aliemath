@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, GitBranch, LogIn, LogOut, CheckCircle2 } from 'lucide-react';
+import { Shield, GitBranch, LogIn, LogOut, CheckCircle2, RefreshCw } from 'lucide-react';
 import { User } from '../types';
 
 interface NavbarProps {
@@ -8,6 +8,9 @@ interface NavbarProps {
   onLogout: () => void;
   onOpenGitHubSync: () => void;
   isGitHubConnected: boolean;
+  lastSyncTime?: string | null;
+  isSyncing?: boolean;
+  onManualRefresh?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -16,6 +19,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onOpenGitHubSync,
   isGitHubConnected,
+  lastSyncTime,
+  isSyncing,
+  onManualRefresh,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all">
@@ -43,6 +49,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Controls */}
           <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Real-time Sync Indicator & Manual Pull Button */}
+            {onManualRefresh && (
+              <button
+                type="button"
+                onClick={onManualRefresh}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all cursor-pointer"
+                title="Tekan untuk menyegarkan data terbaru dari server (HP & Komputer)"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-blue-600' : 'text-slate-500'}`} />
+                <span className="hidden sm:inline text-[11px]">
+                  {isSyncing ? 'Sinkron...' : lastSyncTime ? `Sinkron: ${lastSyncTime}` : 'Sinkron Otomatis'}
+                </span>
+              </button>
+            )}
             {/* GitHub Database Sync Button (Hanya Admin) */}
             {adminUser && (
               <button

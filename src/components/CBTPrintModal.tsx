@@ -48,6 +48,24 @@ export const CBTPrintModal: React.FC<CBTPrintModalProps> = ({
     initialStudent?.id || (students.find((s) => s.role === 'student')?.id || '')
   );
 
+  // Manual Input State for Kepala Sekolah & Guru Mata Pelajaran (Persisted to localStorage)
+  const [headmasterName, setHeadmasterName] = useState<string>(() => {
+    return localStorage.getItem('aliemath_headmaster_name') || 'Drs. H. Mulyadi, M.Pd';
+  });
+  const [headmasterNip, setHeadmasterNip] = useState<string>(() => {
+    return localStorage.getItem('aliemath_headmaster_nip') || '19740512 199903 1 004';
+  });
+  const [teacherNameInput, setTeacherNameInput] = useState<string>(() => {
+    return localStorage.getItem('aliemath_teacher_name') || teacherName || 'Akhmad Alwi, S.Pd';
+  });
+  const [teacherNipInput, setTeacherNipInput] = useState<string>(() => {
+    return localStorage.getItem('aliemath_teacher_nip') || '19850314 201101 1 008';
+  });
+  const [assignCity, setAssignCity] = useState<string>(() => {
+    return localStorage.getItem('aliemath_assign_city') || 'Ditetapkan di Tempat';
+  });
+  const [showSignSettings, setShowSignSettings] = useState<boolean>(false);
+
   const printAreaRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen) return null;
@@ -358,6 +376,100 @@ export const CBTPrintModal: React.FC<CBTPrintModalProps> = ({
               </div>
             )}
           </div>
+
+          {/* Tombol Pengaturan TTD Manual */}
+          <div className="w-full pt-2 border-t border-slate-100 flex items-center justify-between">
+            <button
+              onClick={() => setShowSignSettings(!showSignSettings)}
+              className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>{showSignSettings ? '▲ Sembunyikan' : '▼ Ubah Nama & NIP Kepala Sekolah / Guru Mata Pelajaran (Manual)'}</span>
+            </button>
+            <span className="text-[11px] text-slate-400">
+              Perubahan nama/NIP otomatis tersimpan untuk cetakan berikutnya
+            </span>
+          </div>
+
+          {/* Form Input Manual Pengesahan */}
+          {showSignSettings && (
+            <div className="w-full mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5 text-xs animate-in fade-in duration-200">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                  Nama Kepala Sekolah
+                </label>
+                <input
+                  type="text"
+                  value={headmasterName}
+                  onChange={(e) => {
+                    setHeadmasterName(e.target.value);
+                    localStorage.setItem('aliemath_headmaster_name', e.target.value);
+                  }}
+                  placeholder="Contoh: Drs. H. Mulyadi, M.Pd"
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-900 focus:outline-blue-500 text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                  NIP Kepala Sekolah
+                </label>
+                <input
+                  type="text"
+                  value={headmasterNip}
+                  onChange={(e) => {
+                    setHeadmasterNip(e.target.value);
+                    localStorage.setItem('aliemath_headmaster_nip', e.target.value);
+                  }}
+                  placeholder="19740512 199903 1 004"
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-900 focus:outline-blue-500 text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                  Nama Guru Mapel
+                </label>
+                <input
+                  type="text"
+                  value={teacherNameInput}
+                  onChange={(e) => {
+                    setTeacherNameInput(e.target.value);
+                    localStorage.setItem('aliemath_teacher_name', e.target.value);
+                  }}
+                  placeholder="Contoh: Akhmad Alwi, S.Pd"
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-900 focus:outline-blue-500 text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                  NIP Guru Mapel
+                </label>
+                <input
+                  type="text"
+                  value={teacherNipInput}
+                  onChange={(e) => {
+                    setTeacherNipInput(e.target.value);
+                    localStorage.setItem('aliemath_teacher_nip', e.target.value);
+                  }}
+                  placeholder="19850314 201101 1 008"
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-900 focus:outline-blue-500 text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                  Tempat Penetapan
+                </label>
+                <input
+                  type="text"
+                  value={assignCity}
+                  onChange={(e) => {
+                    setAssignCity(e.target.value);
+                    localStorage.setItem('aliemath_assign_city', e.target.value);
+                  }}
+                  placeholder="Ditetapkan di Tempat"
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-900 focus:outline-blue-500 text-xs"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Printable Paper Area (Styled as clean official school document) */}
@@ -437,15 +549,14 @@ export const CBTPrintModal: React.FC<CBTPrintModalProps> = ({
                   <table className="w-full text-left text-xs border border-slate-300 print:border-slate-600 border-collapse">
                     <thead>
                       <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-300 print:bg-slate-200">
-                        <th className="py-2.5 px-3 border-r border-slate-300 w-10 text-center">No.</th>
-                        <th className="py-2.5 px-3 border-r border-slate-300 w-28">NISN / User</th>
-                        <th className="py-2.5 px-4 border-r border-slate-300">Nama Siswa</th>
-                        <th className="py-2.5 px-3 border-r border-slate-300 w-20 text-center">Kelas</th>
-                        <th className="py-2.5 px-3 border-r border-slate-300 w-24 text-center">Benar / Soal</th>
-                        <th className="py-2.5 px-3 border-r border-slate-300 w-24 text-center font-black">
+                        <th className="py-2.5 px-3 border-r border-slate-300 w-12 text-center">No.</th>
+                        <th className="py-2.5 px-4 border-r border-slate-300">Nama Lengkap Siswa</th>
+                        <th className="py-2.5 px-3 border-r border-slate-300 w-24 text-center">Kelas</th>
+                        <th className="py-2.5 px-3 border-r border-slate-300 w-28 text-center">Benar / Soal</th>
+                        <th className="py-2.5 px-3 border-r border-slate-300 w-28 text-center font-black">
                           Nilai Siswa
                         </th>
-                        <th className="py-2.5 px-3 text-center w-24 font-bold">Keterangan</th>
+                        <th className="py-2.5 px-3 text-center w-28 font-bold">Keterangan</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
@@ -456,9 +567,6 @@ export const CBTPrintModal: React.FC<CBTPrintModalProps> = ({
                         >
                           <td className="py-2 px-3 border-r border-slate-200 text-center font-medium">
                             {idx + 1}
-                          </td>
-                          <td className="py-2 px-3 border-r border-slate-200 font-mono text-[11px]">
-                            {row.student.nisn || row.student.username}
                           </td>
                           <td className="py-2 px-4 border-r border-slate-200 font-bold text-slate-900">
                             {row.student.fullName}
@@ -497,7 +605,7 @@ export const CBTPrintModal: React.FC<CBTPrintModalProps> = ({
                       ))}
                       {examRows.length === 0 && (
                         <tr>
-                          <td colSpan={7} className="py-8 text-center text-slate-400 italic">
+                          <td colSpan={6} className="py-8 text-center text-slate-400 italic">
                             Tidak ada data siswa untuk kelompok kelas yang dipilih.
                           </td>
                         </tr>
@@ -507,7 +615,7 @@ export const CBTPrintModal: React.FC<CBTPrintModalProps> = ({
                     {/* Bottom Summary Table Row */}
                     <tfoot>
                       <tr className="bg-slate-100/80 font-bold border-t-2 border-slate-400 text-slate-900 print:bg-slate-200">
-                        <td colSpan={5} className="py-3 px-4 text-right uppercase text-xs">
+                        <td colSpan={4} className="py-3 px-4 text-right uppercase text-xs">
                           Rata-Rata Nilai Kelas:
                         </td>
                         <td className="py-3 px-3 text-center text-base font-black text-blue-900 border-r border-slate-300">
@@ -566,10 +674,9 @@ export const CBTPrintModal: React.FC<CBTPrintModalProps> = ({
                   <table className="w-full text-left text-xs border border-slate-300 print:border-slate-600 border-collapse">
                     <thead>
                       <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-300 print:bg-slate-200">
-                        <th className="py-2 px-2 border-r border-slate-300 w-8 text-center text-[10px]">No.</th>
-                        <th className="py-2 px-3 border-r border-slate-300 w-24">NISN</th>
-                        <th className="py-2 px-3 border-r border-slate-300 min-w-[140px]">Nama Siswa</th>
-                        <th className="py-2 px-2 border-r border-slate-300 w-14 text-center">Kelas</th>
+                        <th className="py-2 px-2 border-r border-slate-300 w-10 text-center text-[10px]">No.</th>
+                        <th className="py-2 px-3 border-r border-slate-300 min-w-[160px]">Nama Lengkap Siswa</th>
+                        <th className="py-2 px-2 border-r border-slate-300 w-16 text-center">Kelas</th>
                         {relevantExams.map((ex, exIdx) => (
                           <th
                             key={ex.id}
@@ -580,7 +687,7 @@ export const CBTPrintModal: React.FC<CBTPrintModalProps> = ({
                             <span className="text-[9px] text-slate-500 font-normal">KKM {ex.passingScore}</span>
                           </th>
                         ))}
-                        <th className="py-2 px-3 border-r border-slate-300 text-center w-20 font-black bg-blue-50/60 print:bg-slate-200">
+                        <th className="py-2 px-3 border-r border-slate-300 text-center w-24 font-black bg-blue-50/60 print:bg-slate-200">
                           Rata-Rata
                         </th>
                         <th className="py-2 px-2 text-center w-24 font-bold text-[10px]">Predikat</th>
@@ -594,9 +701,6 @@ export const CBTPrintModal: React.FC<CBTPrintModalProps> = ({
                         >
                           <td className="py-2 px-2 border-r border-slate-200 text-center font-medium text-[11px]">
                             {idx + 1}
-                          </td>
-                          <td className="py-2 px-3 border-r border-slate-200 font-mono text-[10px]">
-                            {row.student.nisn || '-'}
                           </td>
                           <td className="py-2 px-3 border-r border-slate-200 font-bold text-slate-900">
                             {row.student.fullName}
@@ -635,7 +739,7 @@ export const CBTPrintModal: React.FC<CBTPrintModalProps> = ({
                     {/* Footer Row: Rata-Rata Tiap Ulangan & Keseluruhan */}
                     <tfoot>
                       <tr className="bg-slate-100 font-bold border-t-2 border-slate-400 text-slate-900 print:bg-slate-200">
-                        <td colSpan={4} className="py-2.5 px-3 text-right uppercase text-[11px]">
+                        <td colSpan={3} className="py-2.5 px-3 text-right uppercase text-[11px]">
                           Rata-Rata Per Ulangan:
                         </td>
                         {relevantExams.map((ex) => (
@@ -692,17 +796,17 @@ export const CBTPrintModal: React.FC<CBTPrintModalProps> = ({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs mb-6 print:bg-white print:border-slate-400">
                   <div>
                     <span className="text-slate-500 block text-[10px] uppercase font-bold">Nama Lengkap Siswa</span>
-                    <strong className="text-slate-900 text-sm">{activeStudent.fullName}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[10px] uppercase font-bold">NISN / No. Induk</span>
-                    <strong className="text-slate-900 font-mono text-sm">{activeStudent.nisn || activeStudent.username}</strong>
+                    <strong className="text-slate-900 text-sm font-bold">{activeStudent.fullName}</strong>
                   </div>
                   <div>
                     <span className="text-slate-500 block text-[10px] uppercase font-bold">Kelas / Sesi</span>
                     <strong className="text-slate-900 text-sm">
                       {activeStudent.classGroup || 'Umum'} • {activeStudent.session || 'Sesi 1'}
                     </strong>
+                  </div>
+                  <div className="bg-blue-50/60 p-2 rounded-lg border border-blue-100 print:border-none print:p-0 print:bg-transparent">
+                    <span className="text-blue-800 print:text-slate-500 block text-[10px] uppercase font-bold">Rata-Rata Nilai</span>
+                    <strong className="text-blue-950 text-sm font-black">{studentAverage}</strong>
                   </div>
                   <div>
                     <span className="text-slate-500 block text-[10px] uppercase font-bold">Tahun Pelajaran</span>
@@ -822,24 +926,30 @@ export const CBTPrintModal: React.FC<CBTPrintModalProps> = ({
             {/* ============================================================== */}
             <div className="mt-10 pt-6 border-t border-slate-200 text-xs text-slate-800 print:mt-8">
               <div className="flex items-start justify-between">
-                <div className="text-center w-56">
+                {/* Kepala Sekolah */}
+                <div className="text-center w-60">
                   <p className="text-slate-500 text-[11px]">Mengetahui,</p>
                   <p className="font-bold text-slate-900 mt-0.5">Kepala Sekolah</p>
                   <div className="h-16 sm:h-20" />
-                  <p className="font-bold underline text-slate-900">Drs. H. Mulyadi, M.Pd</p>
-                  <p className="text-[10px] text-slate-500 font-mono">NIP. 19740512 199903 1 004</p>
+                  <p className="font-bold underline text-slate-900">{headmasterName || '....................................'}</p>
+                  <p className="text-[10px] text-slate-600 font-mono">
+                    {headmasterNip ? `NIP. ${headmasterNip}` : 'NIP. ....................................'}
+                  </p>
                 </div>
 
-                <div className="text-center w-56">
+                {/* Guru Mata Pelajaran */}
+                <div className="text-center w-60">
                   <p className="text-slate-500 text-[11px]">
-                    Ditetapkan di Tempat, {formatDate()}
+                    {assignCity ? `${assignCity}, ${formatDate()}` : `Ditetapkan di Tempat, ${formatDate()}`}
                   </p>
                   <p className="font-bold text-slate-900 mt-0.5">
-                    Guru Pengampu / Pengawas CBT
+                    Guru Mata Pelajaran
                   </p>
                   <div className="h-16 sm:h-20" />
-                  <p className="font-bold underline text-slate-900">{teacherName}</p>
-                  <p className="text-[10px] text-slate-500 font-mono">NIP. 19850314 201101 1 008</p>
+                  <p className="font-bold underline text-slate-900">{teacherNameInput || '....................................'}</p>
+                  <p className="text-[10px] text-slate-600 font-mono">
+                    {teacherNipInput ? `NIP. ${teacherNipInput}` : 'NIP. ....................................'}
+                  </p>
                 </div>
               </div>
 

@@ -130,7 +130,9 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
 
   // Filter for results and class grouping
   const [resultsClassFilter, setResultsClassFilter] = useState('Semua');
-  const [resultsViewMode, setResultsViewMode] = useState<'per_exam' | 'all_exams_leger'>('per_exam');
+  const [resultsViewMode, setResultsViewMode] = useState<
+    'class_averages' | 'all_exams_leger' | 'per_student' | 'per_exam'
+  >('class_averages');
   const [resultsGradeFilter, setResultsGradeFilter] = useState<'Semua' | 'Kelas 7' | 'Kelas 8' | 'Kelas 9'>('Kelas 7');
   const [resultsSpecificClass, setResultsSpecificClass] = useState('Semua');
   const [selectedExamForResultsId, setSelectedExamForResultsId] = useState<string>('');
@@ -1441,27 +1443,51 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
               <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setResultsViewMode('per_exam')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                    resultsViewMode === 'per_exam'
+                  onClick={() => setResultsViewMode('class_averages')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                    resultsViewMode === 'class_averages'
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  <FileCheck2 className="w-3.5 h-3.5" />
-                  <span>1. Rekap Nilai Per Ujian (Terpisah Per Ujian)</span>
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  <span>1. Rata-Rata Seluruh Siswa Per Kelas</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setResultsViewMode('all_exams_leger')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
                     resultsViewMode === 'all_exams_leger'
                       ? 'bg-indigo-600 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   <BookOpen className="w-3.5 h-3.5" />
-                  <span>2. Transkrip & Leger Nilai Keseluruhan (Ulangan 1, 2, 3...)</span>
+                  <span>2. Hasil Per Kelompok Kelas (Leger)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResultsViewMode('per_student')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                    resultsViewMode === 'per_student'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  <span>3. Hasil Per Siswa (Transkrip Individu)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResultsViewMode('per_exam')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                    resultsViewMode === 'per_exam'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <FileCheck2 className="w-3.5 h-3.5" />
+                  <span>4. Rekap Per Paket Ujian</span>
                 </button>
               </div>
 
@@ -1947,6 +1973,370 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                 </div>
               </div>
             )}
+
+            {/* ================= MODE: RATA-RATA SELURUH SISWA PER KELAS ================= */}
+            {resultsViewMode === 'class_averages' && (() => {
+              const classesToSummarize = availableRombelClasses.filter((cls) => {
+                if (resultsGradeFilter === 'Kelas 7') return cls.startsWith('7');
+                if (resultsGradeFilter === 'Kelas 8') return cls.startsWith('8');
+                if (resultsGradeFilter === 'Kelas 9') return cls.startsWith('9');
+                return true;
+              });
+
+              const summaryData = classesToSummarize.map((cls) => {
+                const studentsInClass = allUsers.filter((u) => u.role === 'student' && u.classGroup === cls);
+                const studentIdsInClass = new Set(studentsInClass.map((u) => u.id));
+                const attemptsInClass = attempts.filter((a) => studentIdsInClass.has(a.studentId) || a.studentClass === cls);
+                const attemptedStudentCount = new Set(attemptsInClass.map((a) => a.studentId)).size;
+                const avgScore = attemptsInClass.length > 0
+                  ? Math.round((attemptsInClass.reduce((sum, a) => sum + a.score, 0) / attemptsInClass.length) * 10) / 10
+                  : 0;
+                const highest = attemptsInClass.length > 0 ? Math.max(...attemptsInClass.map((a) => a.score)) : 0;
+                const lowest = attemptsInClass.length > 0 ? Math.min(...attemptsInClass.map((a) => a.score)) : 0;
+                const passedCount = attemptsInClass.filter((a) => a.isPassed).length;
+                const passRate = attemptsInClass.length > 0 ? Math.round((passedCount / attemptsInClass.length) * 100) : 0;
+
+                return {
+                  className: cls,
+                  totalStudents: studentsInClass.length,
+                  attemptedCount: attemptedStudentCount,
+                  totalAttempts: attemptsInClass.length,
+                  avgScore,
+                  highest,
+                  lowest,
+                  passRate,
+                };
+              });
+
+              const totalStudentsAll = summaryData.reduce((acc, c) => acc + c.totalStudents, 0);
+              const totalAttemptsAll = summaryData.reduce((acc, c) => acc + c.totalAttempts, 0);
+              const overallSchoolAverage = attempts.length > 0
+                ? Math.round((attempts.reduce((acc, a) => acc + a.score, 0) / attempts.length) * 10) / 10
+                : 0;
+
+              return (
+                <div className="space-y-5">
+                  {/* Top KPI Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-5 rounded-2xl shadow-sm">
+                      <div className="text-xs font-semibold text-blue-100 uppercase tracking-wider">
+                        Rata-Rata Seluruh Siswa Sekolah
+                      </div>
+                      <div className="text-3xl font-black mt-1">{overallSchoolAverage}</div>
+                      <div className="text-xs text-blue-100/90 mt-1">
+                        Dari {totalAttemptsAll} kali pengerjaan CBT terdata
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Kelompok Rombel Terdata
+                      </div>
+                      <div className="text-3xl font-black text-slate-900 mt-1">
+                        {classesToSummarize.length} <span className="text-sm font-normal text-slate-500">Kelas</span>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1">
+                        Total {totalStudentsAll} siswa terdaftar di sistem
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Tingkat Partisipasi Ujian
+                      </div>
+                      <div className="text-3xl font-black text-emerald-600 mt-1">
+                        {totalStudentsAll > 0
+                          ? Math.round(
+                              (summaryData.reduce((acc, c) => acc + c.attemptedCount, 0) /
+                                (totalStudentsAll || 1)) *
+                                100
+                            )
+                          : 0}
+                        %
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1">
+                        Siswa aktif mengikuti evaluasi CBT
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Summary Table Per Rombel */}
+                  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                    <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">
+                          Tabel Rekapitulasi Rata-Rata Nilai Per Kelompok Kelas ({resultsGradeFilter})
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          Data komparasi capaian nilai rata-rata, rentang nilai, dan ketuntasan antar kelompok rombel
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100 text-slate-800 uppercase font-bold text-[10px] border-b border-slate-200">
+                          <tr>
+                            <th className="py-3 px-3 w-12 text-center">No</th>
+                            <th className="py-3 px-4 font-bold">Kelompok Rombel</th>
+                            <th className="py-3 px-3 text-center">Jumlah Siswa</th>
+                            <th className="py-3 px-3 text-center">Siswa Mengikuti</th>
+                            <th className="py-3 px-4 text-center font-black bg-blue-50 text-blue-900">
+                              Rata-Rata Nilai
+                            </th>
+                            <th className="py-3 px-3 text-center">Min / Max</th>
+                            <th className="py-3 px-3 text-center">Ketuntasan (KKM)</th>
+                            <th className="py-3 px-4 text-center">Aksi Cepat</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {summaryData.map((row, idx) => (
+                            <tr key={row.className} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="py-3 px-3 text-center font-medium text-slate-500">
+                                {idx + 1}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className="font-bold text-slate-900 text-sm">
+                                  Kelas {row.className}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-center font-semibold text-slate-700">
+                                {row.totalStudents} Siswa
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">
+                                  {row.attemptedCount} Siswa ({row.totalAttempts}x)
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center bg-blue-50/50">
+                                <div className="text-base font-black text-blue-800">{row.avgScore}</div>
+                                <div className="w-24 bg-slate-200 h-1.5 rounded-full mx-auto mt-1 overflow-hidden">
+                                  <div
+                                    className="bg-blue-600 h-full rounded-full"
+                                    style={{ width: `${Math.min(100, row.avgScore)}%` }}
+                                  />
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono text-xs text-slate-700">
+                                {row.totalAttempts > 0 ? `${row.lowest} - ${row.highest}` : '-'}
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                <span
+                                  className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                    row.passRate >= 75
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : row.passRate >= 50
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-rose-100 text-rose-800'
+                                  }`}
+                                >
+                                  {row.totalAttempts > 0 ? `${row.passRate}% Tuntas` : 'Belum Ada'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => {
+                                      setResultsSpecificClass(row.className);
+                                      setResultsViewMode('all_exams_leger');
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] cursor-pointer"
+                                    title="Lihat Leger Siswa Kelas Ini"
+                                  >
+                                    Lihat Siswa
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setPrintModalType('class_leger');
+                                      setPrintModalTargetClass(row.className);
+                                      setIsPrintModalOpen(true);
+                                    }}
+                                    className="p-1 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-slate-900 cursor-pointer"
+                                    title="Cetak Leger Nilai Kelas Ini"
+                                  >
+                                    <Printer className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                          {summaryData.length === 0 && (
+                            <tr>
+                              <td colSpan={8} className="py-8 text-center text-slate-400 italic">
+                                Belum ada kelompok kelas yang terdaftar.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                          <tr>
+                            <td colSpan={4} className="py-3 px-4 text-right uppercase tracking-wider">
+                              Rata-Rata Seluruh Siswa Sekolah:
+                            </td>
+                            <td className="py-3 px-4 text-center text-base font-black text-blue-900 bg-blue-100">
+                              {overallSchoolAverage}
+                            </td>
+                            <td colSpan={3} className="py-3 px-4 text-slate-600 text-[11px] font-normal">
+                              Total {totalAttemptsAll} kali pengerjaan ujian
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ================= MODE: HASIL NILAI PER SISWA ================= */}
+            {resultsViewMode === 'per_student' && (() => {
+              const studentList = allUsers.filter((u) => {
+                if (u.role !== 'student') return false;
+                if (resultsGradeFilter !== 'Semua') {
+                  if (resultsGradeFilter === 'Kelas 7' && !u.classGroup?.startsWith('7')) return false;
+                  if (resultsGradeFilter === 'Kelas 8' && !u.classGroup?.startsWith('8')) return false;
+                  if (resultsGradeFilter === 'Kelas 9' && !u.classGroup?.startsWith('9')) return false;
+                }
+                if (resultsSpecificClass !== 'Semua' && u.classGroup !== resultsSpecificClass) return false;
+                if (resultsSearchText.trim()) {
+                  const q = resultsSearchText.toLowerCase();
+                  return (
+                    u.fullName.toLowerCase().includes(q) ||
+                    u.username.toLowerCase().includes(q) ||
+                    (u.nisn && u.nisn.toLowerCase().includes(q))
+                  );
+                }
+                return true;
+              });
+
+              return (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        Hasil Evaluasi Per Siswa ({studentList.length} Siswa Terfilter)
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Histori pengerjaan, capaian nilai ujian, review jawaban, atau cetak transkrip resmi tiap siswa
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {studentList.map((std) => {
+                      const studentAttempts = attempts.filter((a) => a.studentId === std.id);
+                      const avgScore = studentAttempts.length > 0
+                        ? Math.round((studentAttempts.reduce((acc, a) => acc + a.score, 0) / studentAttempts.length) * 10) / 10
+                        : null;
+                      const passedCount = studentAttempts.filter((a) => a.isPassed).length;
+
+                      return (
+                        <div
+                          key={std.id}
+                          className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-4"
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
+                                  {std.fullName.charAt(0)}
+                                </div>
+                                <div>
+                                  <h4 className="font-bold text-slate-900 text-sm">{std.fullName}</h4>
+                                  <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 font-semibold text-slate-700 text-[10px]">
+                                      Kelas {std.classGroup || 'Umum'}
+                                    </span>
+                                    <span>•</span>
+                                    <span className="text-[11px] text-slate-400">Sesi {std.session || '1'}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <div className="text-xl font-black text-blue-600">
+                                  {avgScore !== null ? avgScore : '-'}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-medium">Rata-Rata Nilai</div>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 space-y-2">
+                              <div className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                                <span>Riwayat Ujian ({studentAttempts.length} Ulangan):</span>
+                                <span className="text-[10px] font-normal text-slate-400">
+                                  {passedCount} Tuntas • {studentAttempts.length - passedCount} Remedial
+                                </span>
+                              </div>
+
+                              {studentAttempts.length === 0 ? (
+                                <p className="text-xs text-slate-400 italic py-2">
+                                  Belum pernah mengerjakan paket ujian CBT.
+                                </p>
+                              ) : (
+                                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                  {studentAttempts.map((att) => (
+                                    <div
+                                      key={att.id}
+                                      className="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs"
+                                    >
+                                      <div className="truncate mr-2">
+                                        <p className="font-semibold text-slate-800 truncate">{att.examTitle}</p>
+                                        <p className="text-[10px] text-slate-400">
+                                          Benar {att.correctCount}/{att.totalQuestions} • {new Date(att.completedAt).toLocaleDateString('id-ID')}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <span
+                                          className={`font-black text-xs px-2 py-0.5 rounded ${
+                                            att.isPassed
+                                              ? 'bg-emerald-100 text-emerald-800'
+                                              : 'bg-rose-100 text-rose-800'
+                                          }`}
+                                        >
+                                          {att.score}
+                                        </span>
+                                        <button
+                                          onClick={() => setSelectedAttemptForReview(att)}
+                                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
+                                          title="Review Jawaban Siswa"
+                                        >
+                                          <Eye className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                setPrintModalType('student_transcript');
+                                setPrintModalStudent(std);
+                                setIsPrintModalOpen(true);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>Cetak Transkrip</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {studentList.length === 0 && (
+                      <div className="col-span-full py-12 text-center text-slate-400 italic bg-white rounded-2xl border border-slate-200">
+                        Tidak ada siswa yang sesuai dengan filter pencarian.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}

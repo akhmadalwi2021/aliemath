@@ -25,8 +25,8 @@ import {
   CBTSessionLock,
   GitHubSyncConfig
 } from './types';
-import { loadDatabase, saveDatabase } from './services/storageService';
-import { Database, GitBranch, Shield, GraduationCap, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { loadDatabase, saveDatabase, syncDatabaseToServer, fetchServerDatabase } from './services/storageService';
+import { Database, GitBranch, Shield, GraduationCap, RefreshCw, CheckCircle2, CloudCheck } from 'lucide-react';
 
 export default function App() {
   const [database, setDatabase] = useState<AppDatabase>(() => loadDatabase());
@@ -67,9 +67,60 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
 
-  // Sync state changes with localStorage
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // 1. Pull the central database from server on initial load, tab visibility change, and periodic 10s intervals
+  useEffect(() => {
+    let isMounted = true;
+
+    const pullFromServer = async () => {
+      try {
+        const res = await fetchServerDatabase();
+        if (res.success && res.data && isMounted) {
+          setDatabase(res.data);
+          if (res.updatedAt) {
+            setLastSyncTime(new Date(res.updatedAt).toLocaleTimeString('id-ID'));
+          }
+        }
+      } catch (err) {
+        console.warn('[Sync] Background sync fetch error:', err);
+      }
+    };
+
+    pullFromServer();
+
+    const onFocus = () => pullFromServer();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') pullFromServer();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    const intervalId = setInterval(pullFromServer, 10000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      clearInterval(intervalId);
+    };
+  }, []);
+
+  // 2. Persist state changes to local storage AND upload to the central server so mobile devices update immediately
   useEffect(() => {
     saveDatabase(database);
+    setIsSyncing(true);
+    syncDatabaseToServer(database)
+      .then((res) => {
+        if (res.success && res.updatedAt) {
+          setLastSyncTime(new Date(res.updatedAt).toLocaleTimeString('id-ID'));
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        setIsSyncing(false);
+      });
   }, [database]);
 
   // Derived current active user
@@ -527,6 +578,23 @@ export default function App() {
         onLogout={handleAdminLogout}
         onOpenGitHubSync={() => setIsGitHubModalOpen(true)}
         isGitHubConnected={Boolean(database.gitHubConfig?.token && database.gitHubConfig?.owner)}
+        lastSyncTime={lastSyncTime}
+        isSyncing={isSyncing}
+        onManualRefresh={async () => {
+          setIsSyncing(true);
+          try {
+            const res = await fetchServerDatabase();
+            if (res.success && res.data) {
+              setDatabase(res.data);
+              if (res.updatedAt) {
+                setLastSyncTime(new Date(res.updatedAt).toLocaleTimeString('id-ID'));
+              }
+            }
+          } catch {}
+          finally {
+            setIsSyncing(false);
+          }
+        }}
       />
 
       {/* Main Layout: Sidebar on Left + Dynamic Content on Center */}
