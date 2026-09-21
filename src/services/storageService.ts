@@ -50,12 +50,36 @@ export function loadDatabase(): AppDatabase {
       }),
     }));
 
+    // Ensure seed exams exist
+    const existingExamIds = new Set(exams.map((e: any) => e.id));
+    INITIAL_DATABASE.exams.forEach((seedExam) => {
+      if (!existingExamIds.has(seedExam.id)) {
+        exams.push(seedExam);
+      }
+    });
+
+    // Ensure seed users exist
+    const existingUserIds = new Set(users.map((u: any) => u.id));
+    INITIAL_DATABASE.users.forEach((seedUser) => {
+      if (!existingUserIds.has(seedUser.id)) {
+        users.push(seedUser);
+      }
+    });
+
+    const attempts = [...(parsed.attempts || INITIAL_DATABASE.attempts)];
+    const existingAttemptIds = new Set(attempts.map((a: any) => a.id));
+    INITIAL_DATABASE.attempts.forEach((seedAtt) => {
+      if (!existingAttemptIds.has(seedAtt.id)) {
+        attempts.push(seedAtt);
+      }
+    });
+
     const db: AppDatabase = {
       users,
       news: parsed.news || INITIAL_DATABASE.news,
       materials: parsed.materials || INITIAL_DATABASE.materials,
       exams,
-      attempts: parsed.attempts || INITIAL_DATABASE.attempts,
+      attempts,
       cbtSessionLocks: parsed.cbtSessionLocks || [],
       gitHubConfig: parsed.gitHubConfig || INITIAL_DATABASE.gitHubConfig,
     };

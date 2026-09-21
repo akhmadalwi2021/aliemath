@@ -32,10 +32,12 @@ import {
   AlertOctagon,
   RefreshCw,
   Info,
-  GraduationCap
+  GraduationCap,
+  Printer
 } from 'lucide-react';
 import { CBTExam, CBTAttempt, CBTQuestion, CBTQuestionType, ComplexStatement, CBTSessionLock, User, UserRole } from '../types';
 import { CBTStudentLoginModal } from './CBTStudentLoginModal';
+import { CBTPrintModal, CBTPrintType } from './CBTPrintModal';
 
 interface CBTSectionProps {
   exams: CBTExam[];
@@ -122,8 +124,25 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
   const [formExplanation, setFormExplanation] = useState('');
   const [formPoints, setFormPoints] = useState(20);
 
-  // Filter for results
+  // Filter for results and class grouping
   const [resultsClassFilter, setResultsClassFilter] = useState('Semua');
+  const [resultsViewMode, setResultsViewMode] = useState<'per_exam' | 'all_exams_leger'>('per_exam');
+  const [resultsGradeFilter, setResultsGradeFilter] = useState<'Semua' | 'Kelas 7' | 'Kelas 8' | 'Kelas 9'>('Kelas 7');
+  const [resultsSpecificClass, setResultsSpecificClass] = useState('Semua');
+  const [selectedExamForResultsId, setSelectedExamForResultsId] = useState<string>('');
+  const [resultsSearchText, setResultsSearchText] = useState('');
+
+  // Filter for Bank Soal & Formula per kelas
+  const [bankGradeFilter, setBankGradeFilter] = useState<'Semua' | 'Kelas 7' | 'Kelas 8' | 'Kelas 9'>('Kelas 7');
+  const [bankFormulaFilter, setBankFormulaFilter] = useState<'all' | 'formula_only'>('all');
+  const [bankSearchText, setBankSearchText] = useState('');
+
+  // State for Print Modal
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printModalType, setPrintModalType] = useState<CBTPrintType>('exam_recap');
+  const [printModalExam, setPrintModalExam] = useState<CBTExam | null>(null);
+  const [printModalTargetClass, setPrintModalTargetClass] = useState<string>('Semua');
+  const [printModalStudent, setPrintModalStudent] = useState<User | null>(null);
 
   // Student specific attempts
   const myAttempts = effectiveStudent ? attempts.filter((att) => att.studentId === effectiveStudent.id) : [];
@@ -682,6 +701,27 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
       {/* 3. Nilai Tugas & Pembahasan Siswa */}
       {currentUser.role === 'student' && activeTab === 'grades' && (
         <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Transkrip & Catatan Capaian Belajar Mandiri</h3>
+              <p className="text-xs text-slate-500">Rekapitulasi seluruh nilai tugas dan ulangan harian yang telah kamu ikuti</p>
+            </div>
+            {effectiveStudent && (
+              <button
+                id="btn-print-student-my-transcript"
+                onClick={() => {
+                  setPrintModalType('student_transcript');
+                  setPrintModalStudent(effectiveStudent);
+                  setIsPrintModalOpen(true);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Cetak Transkrip Nilai Saya</span>
+              </button>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs text-center">
               <div className="text-xs text-slate-400 font-semibold">Rata-Rata Nilai CBT</div>
@@ -825,47 +865,199 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
       )}
 
       {/* 2. Bank Soal & Formula (Admin) */}
-      {currentUser.role === 'admin' && activeTab === 'question_bank' && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
-            <div className="flex items-center gap-3">
-              <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Pilih Paket Ujian:</label>
-              <select
-                value={selectedExamForQuestions?.id || exams[0]?.id}
-                onChange={(e) => {
-                  const target = exams.find((x) => x.id === e.target.value);
-                  if (target) setSelectedExamForQuestions(target);
-                }}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold bg-white"
-              >
-                {exams.map((ex) => (
-                  <option key={ex.id} value={ex.id}>
-                    {ex.title} ({ex.questions.length} soal)
-                  </option>
-                ))}
-              </select>
+      {currentUser.role === 'admin' && activeTab === 'question_bank' && (() => {
+        const gradeFilteredExams = exams.filter((ex) => {
+          if (bankGradeFilter === 'Semua') return true;
+          return ex.gradeLevel === bankGradeFilter || ex.gradeLevel === 'Semua Kelas';
+        });
+
+        const activeExam = (selectedExamForQuestions && gradeFilteredExams.some((e) => e.id === selectedExamForQuestions.id))
+          ? selectedExamForQuestions
+          : gradeFilteredExams[0] || null;
+
+        const displayedQuestions = (activeExam?.questions || []).filter((q) => {
+          if (bankFormulaFilter === 'formula_only' && !q.questionFormula) {
+            return false;
+          }
+          if (bankSearchText.trim()) {
+            const query = bankSearchText.toLowerCase();
+            const textMatch = q.questionText.toLowerCase().includes(query);
+            const formulaMatch = q.questionFormula?.toLowerCase().includes(query) || false;
+            const explanationMatch = q.explanation?.toLowerCase().includes(query) || false;
+            return textMatch || formulaMatch || explanationMatch;
+          }
+          return true;
+        });
+
+        const totalFormulaCountInExam = (activeExam?.questions || []).filter((q) => Boolean(q.questionFormula)).length;
+
+        return (
+          <div className="space-y-4">
+            {/* Header Toolbar: Filter Kelompok Kelas, Formula Filter, dan Pemilihan Paket Ujian */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Bank Soal & Formula Matematika Berdasarkan Tingkat Kelas
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Pemisahan butir soal per kelompok kelas agar paket soal Kelas 7, Kelas 8, dan Kelas 9 tidak tercampur.
+                  </p>
+                </div>
+
+                {activeExam && (
+                  <button
+                    id="btn-add-question-modal"
+                    onClick={() => handleOpenAddQuestion(activeExam)}
+                    className="px-3.5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 shadow-xs flex items-center gap-1.5 self-start lg:self-auto cursor-pointer transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Tambah Soal ke {activeExam.gradeLevel}
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Tabs: Kelompok Kelas */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+                <span className="text-xs font-bold text-slate-600 mr-1 flex items-center gap-1">
+                  <Filter className="w-3.5 h-3.5 text-blue-600" />
+                  Kelompok Kelas:
+                </span>
+                {(['Kelas 7', 'Kelas 8', 'Kelas 9', 'Semua'] as const).map((grade) => {
+                  const countForGrade = exams.filter((e) => grade === 'Semua' || e.gradeLevel === grade).length;
+                  const isSelected = bankGradeFilter === grade;
+                  return (
+                    <button
+                      key={grade}
+                      onClick={() => {
+                        setBankGradeFilter(grade);
+                        const matchedExams = exams.filter((e) => grade === 'Semua' || e.gradeLevel === grade || e.gradeLevel === 'Semua Kelas');
+                        if (matchedExams.length > 0) {
+                          setSelectedExamForQuestions(matchedExams[0]);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {grade === 'Semua' ? 'Semua Tingkat' : grade} ({countForGrade} Paket)
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Sub-Filters: Paket Ujian Dropdown, Formula Only Toggle, & Search */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Pilih Paket Soal ({bankGradeFilter}):
+                  </label>
+                  <select
+                    value={activeExam?.id || ''}
+                    onChange={(e) => {
+                      const target = exams.find((x) => x.id === e.target.value);
+                      if (target) setSelectedExamForQuestions(target);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    {gradeFilteredExams.length === 0 ? (
+                      <option value="">Tidak ada paket ujian di tingkat {bankGradeFilter}</option>
+                    ) : (
+                      gradeFilteredExams.map((ex) => (
+                        <option key={ex.id} value={ex.id}>
+                          [{ex.gradeLevel}] {ex.title} ({ex.questions.length} butir)
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Filter Formula / Rumus:
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setBankFormulaFilter('all')}
+                      className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer text-center ${
+                        bankFormulaFilter === 'all'
+                          ? 'bg-slate-800 text-white border-slate-800'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      Semua ({activeExam?.questions.length || 0})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBankFormulaFilter('formula_only')}
+                      className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer text-center flex items-center justify-center gap-1 ${
+                        bankFormulaFilter === 'formula_only'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'
+                      }`}
+                    >
+                      <span>Rumus ({totalFormulaCountInExam})</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Cari Teks / Formula Soal:
+                  </label>
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Ketik kata kunci rumus..."
+                      value={bankSearchText}
+                      onChange={(e) => setBankSearchText(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs bg-white text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {selectedExamForQuestions && (
-              <button
-                onClick={() => handleOpenAddQuestion(selectedExamForQuestions)}
-                className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700 flex items-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                Tambah Butir Soal CBT
-              </button>
-            )}
-          </div>
-
-          {/* Questions list */}
-          {selectedExamForQuestions ? (
-            <div className="space-y-3">
-              {selectedExamForQuestions.questions.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-xs text-slate-400">
-                  Belum ada soal pada paket ini. Klik tombol <strong>Tambah Butir Soal CBT</strong> di atas.
+            {/* Questions list */}
+            {activeExam ? (
+              <div className="space-y-3">
+                {/* Active Exam Summary Card */}
+                <div className="bg-gradient-to-r from-blue-50/60 to-indigo-50/60 p-4 rounded-xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="px-2.5 py-1 rounded-lg bg-blue-600 text-white font-black text-xs">
+                      {activeExam.gradeLevel}
+                    </span>
+                    <div>
+                      <span className="font-bold text-slate-900 text-sm">{activeExam.title}</span>
+                      <div className="text-slate-500 text-[11px]">
+                        Mata Pelajaran: {activeExam.subject} • KKM: {activeExam.passingScore} • Durasi: {activeExam.durationMinutes} menit
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-600 font-semibold text-[11px]">
+                    <span>Total: {activeExam.questions.length} butir</span>
+                    <span>•</span>
+                    <span className="text-blue-700 font-bold">{totalFormulaCountInExam} berumus</span>
+                  </div>
                 </div>
-              ) : (
-                selectedExamForQuestions.questions.map((q, idx) => (
+
+                {displayedQuestions.length === 0 ? (
+                  <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-xs text-slate-400 space-y-2">
+                    <p className="font-semibold text-slate-600">
+                      {bankFormulaFilter === 'formula_only'
+                        ? 'Tidak ditemukan butir soal yang memiliki formula matematika khusus pada paket ini.'
+                        : 'Belum ada butir soal yang cocok dengan filter atau paket ujian ini.'}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Klik tombol <strong>Tambah Soal ke {activeExam.gradeLevel}</strong> untuk menambahkan soal baru.
+                    </p>
+                  </div>
+                ) : (
+                  displayedQuestions.map((q, idx) => (
                   <div
                     key={q.id}
                     className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3"
@@ -897,14 +1089,16 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
 
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => handleOpenEditQuestion(selectedExamForQuestions, q)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                          onClick={() => handleOpenEditQuestion(activeExam, q)}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer"
+                          title="Edit Butir Soal"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => handleDeleteQuestion(selectedExamForQuestions, q.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                          onClick={() => handleDeleteQuestion(activeExam, q.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                          title="Hapus Butir Soal"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1033,102 +1227,677 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
             <div className="p-8 text-center text-xs text-slate-400">Pilih paket ujian terlebih dahulu.</div>
           )}
         </div>
-      )}
+      );
+    })()}
 
       {/* 3. Rekapitulasi Nilai Siswa (Admin) */}
-      {currentUser.role === 'admin' && activeTab === 'student_results' && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200">
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-bold text-slate-700">Filter Kelas:</label>
-              <select
-                value={resultsClassFilter}
-                onChange={(e) => setResultsClassFilter(e.target.value)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold bg-white"
-              >
-                <option value="Semua">Semua Kelas</option>
-                <option value="7">7</option>
-                <option value="8">8</option>
-                <option value="9">9</option>
-              </select>
+      {currentUser.role === 'admin' && activeTab === 'student_results' && (() => {
+        // Compute available student list and classes
+        const studentUsers = allUsers.filter((u) => u.role === 'student');
+        const availableRombelClasses = Array.from(
+          new Set(
+            [
+              ...studentUsers.map((u) => u.classGroup).filter(Boolean),
+              ...attempts.map((a) => a.studentClass).filter(Boolean),
+            ] as string[]
+          )
+        ).sort();
+
+        // Exams filtered by grade level
+        const gradeFilteredExams = exams.filter((ex) => {
+          if (resultsGradeFilter === 'Semua') return true;
+          return ex.gradeLevel === resultsGradeFilter || ex.gradeLevel === 'Semua Kelas';
+        });
+
+        // Currently selected exam for Mode 1 (Per-Ujian)
+        const currentSelectedExam = (selectedExamForResultsId && gradeFilteredExams.find((e) => e.id === selectedExamForResultsId))
+          || gradeFilteredExams[0]
+          || exams[0]
+          || null;
+
+        // Mode 1 Filtered Attempts (Strictly separated per exam!)
+        const mode1Attempts = attempts.filter((att) => {
+          if (!currentSelectedExam) return false;
+          if (att.examId !== currentSelectedExam.id) return false;
+          if (resultsGradeFilter !== 'Semua') {
+            if (currentSelectedExam.gradeLevel !== resultsGradeFilter && currentSelectedExam.gradeLevel !== 'Semua Kelas') {
+              return false;
+            }
+          }
+          if (resultsSpecificClass !== 'Semua' && att.studentClass !== resultsSpecificClass) {
+            return false;
+          }
+          if (resultsSearchText.trim()) {
+            const q = resultsSearchText.toLowerCase();
+            const nameMatch = att.studentName.toLowerCase().includes(q);
+            const nisnMatch = att.studentNisn?.toLowerCase().includes(q);
+            return nameMatch || nisnMatch;
+          }
+          return true;
+        });
+
+        // Mode 1 Stats (Average, High, Low, Passing Rate)
+        const mode1Scores = mode1Attempts.map((a) => a.score);
+        const mode1AvgScore = mode1Scores.length > 0 ? (mode1Scores.reduce((a, b) => a + b, 0) / mode1Scores.length) : 0;
+        const mode1Highest = mode1Scores.length > 0 ? Math.max(...mode1Scores) : 0;
+        const mode1Lowest = mode1Scores.length > 0 ? Math.min(...mode1Scores) : 0;
+        const mode1PassedCount = mode1Attempts.filter((a) => a.isPassed).length;
+        const mode1PassingRate = mode1Attempts.length > 0 ? Math.round((mode1PassedCount / mode1Attempts.length) * 100) : 0;
+
+        // Mode 2: Leger & Transkrip Nilai Keseluruhan
+        // Filter students by selected grade and class
+        const mode2Students = studentUsers.filter((s) => {
+          const sClass = s.classGroup || '';
+          if (resultsGradeFilter === 'Kelas 7' && !sClass.startsWith('7')) return false;
+          if (resultsGradeFilter === 'Kelas 8' && !sClass.startsWith('8')) return false;
+          if (resultsGradeFilter === 'Kelas 9' && !sClass.startsWith('9')) return false;
+          if (resultsSpecificClass !== 'Semua' && sClass !== resultsSpecificClass) return false;
+          if (resultsSearchText.trim()) {
+            const q = resultsSearchText.toLowerCase();
+            const matchName = s.fullName.toLowerCase().includes(q);
+            const matchNisn = s.nisn?.toLowerCase().includes(q);
+            return matchName || matchNisn;
+          }
+          return true;
+        });
+
+        // Exams in scope for Leger
+        const examsForLeger = exams.filter((ex) => {
+          if (resultsGradeFilter === 'Semua') return true;
+          return ex.gradeLevel === resultsGradeFilter || ex.gradeLevel === 'Semua Kelas';
+        });
+
+        // Compute column averages for Leger
+        const examAverages: { [examId: string]: number } = {};
+        examsForLeger.forEach((ex) => {
+          const exAttempts = attempts.filter((a) => {
+            if (a.examId !== ex.id) return false;
+            if (resultsGradeFilter === 'Kelas 7' && !a.studentClass?.startsWith('7')) return false;
+            if (resultsGradeFilter === 'Kelas 8' && !a.studentClass?.startsWith('8')) return false;
+            if (resultsGradeFilter === 'Kelas 9' && !a.studentClass?.startsWith('9')) return false;
+            if (resultsSpecificClass !== 'Semua' && a.studentClass !== resultsSpecificClass) return false;
+            return true;
+          });
+          if (exAttempts.length > 0) {
+            const sum = exAttempts.reduce((acc, curr) => acc + curr.score, 0);
+            examAverages[ex.id] = Math.round(sum / exAttempts.length);
+          } else {
+            examAverages[ex.id] = 0;
+          }
+        });
+
+        return (
+          <div className="space-y-4">
+            {/* Main Header & View Mode Switcher */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Rekapitulasi Nilai Siswa Per Kelompok Kelas & Format Siap Cetak
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Sistem pemisahan nilai per paket ujian dan transkrip kumulatif ulangan matematika dengan perhitungan rata-rata otomatis.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {resultsViewMode === 'per_exam' && currentSelectedExam && (
+                    <button
+                      id="btn-print-exam-recap"
+                      onClick={() => {
+                        setPrintModalType('exam_recap');
+                        setPrintModalExam(currentSelectedExam);
+                        setPrintModalTargetClass(resultsSpecificClass);
+                        setPrintModalStudent(null);
+                        setIsPrintModalOpen(true);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Cetak Form Nilai Ujian (Print Out)</span>
+                    </button>
+                  )}
+
+                  {resultsViewMode === 'all_exams_leger' && (
+                    <button
+                      id="btn-print-class-leger"
+                      onClick={() => {
+                        setPrintModalType('class_leger');
+                        setPrintModalExam(null);
+                        setPrintModalTargetClass(resultsSpecificClass !== 'Semua' ? resultsSpecificClass : resultsGradeFilter);
+                        setPrintModalStudent(null);
+                        setIsPrintModalOpen(true);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Cetak Leger Nilai Kelas (Print Out)</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleExportCSV}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Unduh CSV</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sub-Tabs: Mode Tampilan Nilai */}
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setResultsViewMode('per_exam')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                    resultsViewMode === 'per_exam'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <FileCheck2 className="w-3.5 h-3.5" />
+                  <span>1. Rekap Nilai Per Ujian (Terpisah Per Ujian)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResultsViewMode('all_exams_leger')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                    resultsViewMode === 'all_exams_leger'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>2. Transkrip & Leger Nilai Keseluruhan (Ulangan 1, 2, 3...)</span>
+                </button>
+              </div>
+
+              {/* Filter Kelompok Kelas Buttons */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-xs font-bold text-slate-600 mr-1 flex items-center gap-1">
+                  <Filter className="w-3.5 h-3.5 text-blue-600" />
+                  Kelompok Kelas:
+                </span>
+                {(['Kelas 7', 'Kelas 8', 'Kelas 9', 'Semua'] as const).map((grade) => {
+                  const isSelected = resultsGradeFilter === grade;
+                  return (
+                    <button
+                      key={grade}
+                      onClick={() => {
+                        setResultsGradeFilter(grade);
+                        setResultsSpecificClass('Semua');
+                        // pick an exam matching that grade if in per_exam mode
+                        const matched = exams.filter((e) => grade === 'Semua' || e.gradeLevel === grade || e.gradeLevel === 'Semua Kelas');
+                        if (matched.length > 0) {
+                          setSelectedExamForResultsId(matched[0].id);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {grade === 'Semua' ? 'Semua Tingkat' : grade}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Secondary Filter Bar: Rombel Kelas, Paket Ujian (for Mode 1), & Pencarian Siswa */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                {resultsViewMode === 'per_exam' && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Pilih Paket Ujian CBT ({resultsGradeFilter}):
+                    </label>
+                    <select
+                      value={currentSelectedExam?.id || ''}
+                      onChange={(e) => setSelectedExamForResultsId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    >
+                      {gradeFilteredExams.length === 0 ? (
+                        <option value="">Tidak ada paket ujian pada tingkat {resultsGradeFilter}</option>
+                      ) : (
+                        gradeFilteredExams.map((ex) => (
+                          <option key={ex.id} value={ex.id}>
+                            [{ex.gradeLevel}] {ex.title} (KKM: {ex.passingScore})
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Filter Rombel / Kelas Siswa:
+                  </label>
+                  <select
+                    value={resultsSpecificClass}
+                    onChange={(e) => setResultsSpecificClass(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="Semua">Semua Rombel ({resultsGradeFilter})</option>
+                    {availableRombelClasses
+                      .filter((cls) => {
+                        if (resultsGradeFilter === 'Kelas 7') return cls.startsWith('7');
+                        if (resultsGradeFilter === 'Kelas 8') return cls.startsWith('8');
+                        if (resultsGradeFilter === 'Kelas 9') return cls.startsWith('9');
+                        return true;
+                      })
+                      .map((cls) => (
+                        <option key={cls} value={cls}>
+                          Kelas {cls}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Cari Nama Siswa / NISN:
+                  </label>
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Ketik nama siswa..."
+                      value={resultsSearchText}
+                      onChange={(e) => setResultsSearchText(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs bg-white text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <button
-              onClick={handleExportCSV}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 shadow-xs transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Unduh Rekap CSV
-            </button>
-          </div>
+            {/* ================= MODE 1: REKAP NILAI PER UJIAN ================= */}
+            {resultsViewMode === 'per_exam' && (
+              <div className="space-y-4">
+                {currentSelectedExam ? (
+                  <>
+                    {/* Exam Header Card & Quick Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs md:col-span-1">
+                        <div className="text-[11px] text-slate-500 font-semibold">Paket Ujian Terpilih</div>
+                        <div className="font-bold text-slate-900 text-sm mt-0.5 truncate">{currentSelectedExam.title}</div>
+                        <div className="text-[10px] text-blue-600 font-bold mt-1">
+                          Tingkat: {currentSelectedExam.gradeLevel} • KKM: {currentSelectedExam.passingScore}
+                        </div>
+                      </div>
 
-          {/* Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-semibold text-[10px]">
-                  <tr>
-                    <th className="py-3 px-4">Nama Siswa</th>
-                    <th className="py-3 px-3">Kelas</th>
-                    <th className="py-3 px-4">Paket Ujian CBT</th>
-                    <th className="py-3 px-3">Skor Nilai</th>
-                    <th className="py-3 px-3">Status</th>
-                    <th className="py-3 px-3">Waktu Selesai</th>
-                    <th className="py-3 px-3 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {attempts
-                    .filter((att) => resultsClassFilter === 'Semua' || att.studentClass === resultsClassFilter)
-                    .map((att) => (
-                      <tr key={att.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-4 font-bold text-slate-900">
-                          {att.studentName}
-                          <div className="text-[10px] text-slate-400 font-mono">NISN: {att.studentNisn || '-'}</div>
-                        </td>
-                        <td className="py-3 px-3 font-medium text-slate-600">{att.studentClass}</td>
-                        <td className="py-3 px-4 font-medium text-slate-800">{att.examTitle}</td>
-                        <td className="py-3 px-3">
-                          <span className="text-sm font-black text-blue-600">{att.score}</span>
-                          <span className="text-[10px] text-slate-400 block font-sans">
-                            {att.correctCount}/{att.totalQuestions} Benar
-                          </span>
-                        </td>
-                        <td className="py-3 px-3">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              att.isPassed
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-rose-100 text-rose-800'
-                            }`}
-                          >
-                            {att.isPassed ? 'LULUS' : 'REMEDIAL'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-[11px] text-slate-500">
-                          {new Date(att.completedAt).toLocaleDateString('id-ID', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <button
-                            onClick={() => setSelectedAttemptForReview(att)}
-                            className="text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1"
-                          >
-                            <Eye className="w-3.5 h-3.5" /> Review
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs text-center">
+                        <div className="text-[11px] text-slate-500 font-semibold">Rata-Rata Nilai Kelas</div>
+                        <div className="text-2xl font-black text-blue-600 mt-0.5">
+                          {mode1AvgScore.toFixed(1)}
+                        </div>
+                        <div className="text-[10px] text-slate-400">Dari {mode1Attempts.length} Siswa Terdata</div>
+                      </div>
+
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs text-center">
+                        <div className="text-[11px] text-slate-500 font-semibold">Rentang Nilai (Min - Max)</div>
+                        <div className="text-lg font-black text-slate-800 mt-1">
+                          {mode1Attempts.length > 0 ? `${mode1Lowest} - ${mode1Highest}` : '-'}
+                        </div>
+                        <div className="text-[10px] text-slate-400">Skala 0 - 100</div>
+                      </div>
+
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs text-center">
+                        <div className="text-[11px] text-slate-500 font-semibold">Ketuntasan Belajar</div>
+                        <div className="text-2xl font-black text-emerald-600 mt-0.5">
+                          {mode1PassingRate}%
+                        </div>
+                        <div className="text-[10px] text-emerald-700 font-bold">
+                          {mode1PassedCount} dari {mode1Attempts.length} Lulus KKM
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Notification Notice: Per-Exam Separation */}
+                    <div className="bg-blue-50/70 border border-blue-200/80 p-3 rounded-xl flex items-center justify-between gap-3 text-xs text-blue-900">
+                      <div className="flex items-center gap-2">
+                        <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                        <span>
+                          <strong>Formulir Nilai Resmi Ujian:</strong> Nilai pada tabel di bawah ini terpisah khusus untuk <strong>{currentSelectedExam.title}</strong>, tidak digabung dengan ujian lain sehingga siap dicetak langsung.
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setPrintModalType('exam_recap');
+                          setPrintModalExam(currentSelectedExam);
+                          setPrintModalTargetClass(resultsSpecificClass);
+                          setIsPrintModalOpen(true);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-[11px] hover:bg-blue-700 shrink-0 cursor-pointer shadow-xs"
+                      >
+                        Buka Preview Cetak
+                      </button>
+                    </div>
+
+                    {/* Table of Students in Mode 1 */}
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-bold text-[10px]">
+                            <tr>
+                              <th className="py-3 px-3 w-12 text-center">No</th>
+                              <th className="py-3 px-4">Nama Siswa</th>
+                              <th className="py-3 px-3">NISN</th>
+                              <th className="py-3 px-3 text-center">Kelas</th>
+                              <th className="py-3 px-3 text-center">Benar / Total</th>
+                              <th className="py-3 px-3 text-center">Nilai Ujian</th>
+                              <th className="py-3 px-3 text-center">Status</th>
+                              <th className="py-3 px-3">Waktu Selesai</th>
+                              <th className="py-3 px-3 text-right">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {mode1Attempts.length === 0 ? (
+                              <tr>
+                                <td colSpan={9} className="py-8 text-center text-slate-400 text-xs">
+                                  Belum ada siswa dari kelas yang dipilih yang menyelesaikan ujian {currentSelectedExam.title}.
+                                </td>
+                              </tr>
+                            ) : (
+                              mode1Attempts.map((att, idx) => (
+                                <tr key={att.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="py-3 px-3 text-center font-bold text-slate-400">{idx + 1}</td>
+                                  <td className="py-3 px-4 font-bold text-slate-900">{att.studentName}</td>
+                                  <td className="py-3 px-3 font-mono text-slate-500">{att.studentNisn || '-'}</td>
+                                  <td className="py-3 px-3 text-center">
+                                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">
+                                      {att.studentClass}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3 text-center font-medium text-slate-600">
+                                    {att.correctCount} / {att.totalQuestions}
+                                  </td>
+                                  <td className="py-3 px-3 text-center">
+                                    <span className="text-sm font-black text-blue-600">{att.score}</span>
+                                  </td>
+                                  <td className="py-3 px-3 text-center">
+                                    <span
+                                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                        att.isPassed
+                                          ? 'bg-emerald-100 text-emerald-800'
+                                          : 'bg-rose-100 text-rose-800'
+                                      }`}
+                                    >
+                                      {att.isPassed ? 'TUNTAS' : 'REMEDIAL'}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3 text-[11px] text-slate-500">
+                                    {new Date(att.completedAt).toLocaleDateString('id-ID', {
+                                      day: 'numeric',
+                                      month: 'short',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </td>
+                                  <td className="py-3 px-3 text-right">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <button
+                                        onClick={() => setSelectedAttemptForReview(att)}
+                                        className="text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1 p-1 hover:bg-blue-50 rounded"
+                                        title="Review Jawaban & Pembahasan"
+                                      >
+                                        <Eye className="w-3.5 h-3.5" />
+                                        <span>Review</span>
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          const matchedStudent: User = allUsers.find((u) => u.id === att.studentId || u.fullName === att.studentName) || {
+                                            id: att.studentId,
+                                            username: att.studentName.toLowerCase().replace(/\s+/g, '_'),
+                                            fullName: att.studentName,
+                                            role: 'student',
+                                            status: 'active',
+                                            createdAt: new Date().toISOString(),
+                                            classGroup: att.studentClass,
+                                            nisn: att.studentNisn,
+                                          };
+                                          setPrintModalType('student_transcript');
+                                          setPrintModalStudent(matchedStudent);
+                                          setIsPrintModalOpen(true);
+                                        }}
+                                        className="text-indigo-600 hover:text-indigo-800 font-semibold inline-flex items-center gap-1 p-1 hover:bg-indigo-50 rounded"
+                                        title="Cetak Transkrip Siswa"
+                                      >
+                                        <Printer className="w-3.5 h-3.5" />
+                                        <span>Transkrip</span>
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                          {mode1Attempts.length > 0 && (
+                            <tfoot className="bg-slate-100/80 font-bold border-t-2 border-slate-300 text-slate-800 text-xs">
+                              <tr>
+                                <td colSpan={5} className="py-3 px-4 text-right uppercase tracking-wider text-slate-700">
+                                  Rata-Rata Nilai Kelas:
+                                </td>
+                                <td className="py-3 px-3 text-center text-sm font-black text-blue-700">
+                                  {mode1AvgScore.toFixed(1)}
+                                </td>
+                                <td colSpan={3} className="py-3 px-4 text-xs font-semibold text-slate-600">
+                                  Ketuntasan: {mode1PassingRate}% (KKM: {currentSelectedExam.passingScore})
+                                </td>
+                              </tr>
+                            </tfoot>
+                          )}
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-xs text-slate-400">
+                    Pilih paket ujian terlebih dahulu.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ================= MODE 2: TRANSKRIP & LEGER NILAI KESELURUHAN ================= */}
+            {resultsViewMode === 'all_exams_leger' && (
+              <div className="space-y-4">
+                {/* Leger Overview Banner */}
+                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div>
+                    <h4 className="font-bold text-indigo-950 text-sm">
+                      Leger Nilai Keseluruhan Ulangan / Latihan Siswa
+                    </h4>
+                    <p className="text-indigo-800/80 text-[11px] mt-0.5">
+                      Menampilkan perbandingan nilai Ulangan 1, Ulangan 2, Ulangan 3 dan seterusnya beserta kalkulasi rata-rata per ulangan dan rata-rata kumulatif per siswa.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => {
+                        setPrintModalType('class_leger');
+                        setPrintModalTargetClass(resultsSpecificClass !== 'Semua' ? resultsSpecificClass : resultsGradeFilter);
+                        setIsPrintModalOpen(true);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Cetak Leger Kelas</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Leger Matrix Table */}
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 uppercase font-bold text-[10px]">
+                        <tr>
+                          <th className="py-3 px-3 w-12 text-center border-r border-slate-200">No</th>
+                          <th className="py-3 px-3 font-mono text-slate-600 border-r border-slate-200">NISN</th>
+                          <th className="py-3 px-4 min-w-[180px] border-r border-slate-200">Nama Lengkap Siswa</th>
+                          <th className="py-3 px-3 text-center border-r border-slate-200">Kelas</th>
+                          {examsForLeger.map((ex, exIdx) => (
+                            <th key={ex.id} className="py-3 px-3 text-center min-w-[100px] border-r border-slate-200">
+                              <span className="block text-indigo-700 font-extrabold">U{exIdx + 1}</span>
+                              <span className="block text-[9px] text-slate-500 font-normal truncate max-w-[120px]" title={ex.title}>
+                                {ex.title}
+                              </span>
+                            </th>
+                          ))}
+                          <th className="py-3 px-3 text-center min-w-[90px] bg-blue-50/80 text-blue-900 border-r border-slate-200 font-extrabold">
+                            Rata-Rata
+                          </th>
+                          <th className="py-3 px-3 text-center w-20 border-r border-slate-200">Predikat</th>
+                          <th className="py-3 px-3 text-right">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {mode2Students.length === 0 ? (
+                          <tr>
+                            <td colSpan={6 + examsForLeger.length} className="py-8 text-center text-slate-400 text-xs">
+                              Tidak ada siswa yang terdata pada kelompok {resultsGradeFilter} {resultsSpecificClass !== 'Semua' ? `(${resultsSpecificClass})` : ''}.
+                            </td>
+                          </tr>
+                        ) : (
+                          mode2Students.map((student, sIdx) => {
+                            // Find attempts by this student
+                            const studentScores: number[] = [];
+
+                            return (
+                              <tr key={student.id} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="py-3 px-3 text-center font-bold text-slate-400 border-r border-slate-100">
+                                  {sIdx + 1}
+                                </td>
+                                <td className="py-3 px-3 font-mono text-slate-500 border-r border-slate-100">
+                                  {student.nisn || '-'}
+                                </td>
+                                <td className="py-3 px-4 font-bold text-slate-900 border-r border-slate-100">
+                                  {student.fullName}
+                                </td>
+                                <td className="py-3 px-3 text-center border-r border-slate-100">
+                                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">
+                                    {student.classGroup}
+                                  </span>
+                                </td>
+
+                                {/* Exam score columns */}
+                                {examsForLeger.map((ex) => {
+                                  const att = attempts.find((a) => a.studentId === student.id && a.examId === ex.id);
+                                  if (att) {
+                                    studentScores.push(att.score);
+                                  }
+                                  return (
+                                    <td key={ex.id} className="py-3 px-3 text-center border-r border-slate-100 font-semibold">
+                                      {att ? (
+                                        <span className={att.score >= ex.passingScore ? 'text-emerald-700 font-bold' : 'text-rose-600 font-bold'}>
+                                          {att.score}
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-300">-</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+
+                                {/* Average Score */}
+                                {(() => {
+                                  const avg = studentScores.length > 0
+                                    ? Math.round(studentScores.reduce((a, b) => a + b, 0) / studentScores.length)
+                                    : null;
+                                  const predicate = avg !== null
+                                    ? avg >= 85
+                                      ? 'Sangat Baik'
+                                      : avg >= 75
+                                      ? 'Baik'
+                                      : 'Remedial'
+                                    : '-';
+                                  return (
+                                    <>
+                                      <td className="py-3 px-3 text-center bg-blue-50/50 border-r border-slate-100">
+                                        {avg !== null ? (
+                                          <span className="text-sm font-black text-blue-700">{avg}</span>
+                                        ) : (
+                                          <span className="text-slate-400 text-[11px]">-</span>
+                                        )}
+                                      </td>
+                                      <td className="py-3 px-3 text-center border-r border-slate-100">
+                                        <span
+                                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                            predicate === 'Sangat Baik'
+                                              ? 'bg-emerald-100 text-emerald-800'
+                                              : predicate === 'Baik'
+                                              ? 'bg-blue-100 text-blue-800'
+                                              : 'bg-rose-100 text-rose-800'
+                                          }`}
+                                        >
+                                          {predicate}
+                                        </span>
+                                      </td>
+                                      <td className="py-3 px-3 text-right">
+                                        <button
+                                          onClick={() => {
+                                            setPrintModalType('student_transcript');
+                                            setPrintModalStudent(student);
+                                            setIsPrintModalOpen(true);
+                                          }}
+                                          className="text-indigo-600 hover:text-indigo-800 font-semibold inline-flex items-center gap-1 p-1 hover:bg-indigo-50 rounded"
+                                          title="Cetak Transkrip Nilai Siswa Ini"
+                                        >
+                                          <Printer className="w-3.5 h-3.5" />
+                                          <span>Cetak Transkrip</span>
+                                        </button>
+                                      </td>
+                                    </>
+                                  );
+                                })()}
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+
+                      {/* Footer Row: Rata-Rata Per Ulangan dan Rata-Rata Total Kelas */}
+                      {mode2Students.length > 0 && (
+                        <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-800 text-xs">
+                          <tr>
+                            <td colSpan={4} className="py-3 px-4 text-right uppercase tracking-wider text-slate-700 border-r border-slate-200">
+                              Rata-Rata Per Ulangan:
+                            </td>
+                            {examsForLeger.map((ex) => (
+                              <td key={ex.id} className="py-3 px-3 text-center border-r border-slate-200 text-blue-700 font-black">
+                                {examAverages[ex.id] || 0}
+                              </td>
+                            ))}
+                            {(() => {
+                              const validAvgs = Object.values(examAverages).filter((v) => v > 0);
+                              const grandAverage = validAvgs.length > 0
+                                ? Math.round(validAvgs.reduce((a, b) => a + b, 0) / validAvgs.length)
+                                : 0;
+                              return (
+                                <>
+                                  <td className="py-3 px-3 text-center bg-blue-100 text-blue-900 border-r border-slate-200 text-sm font-black">
+                                    {grandAverage}
+                                  </td>
+                                  <td colSpan={2} className="py-3 px-3 text-center text-[10px] text-slate-500 font-normal">
+                                    Rata-Rata Total Kelas
+                                  </td>
+                                </>
+                              );
+                            })()}
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 4. Monitor & Reset Layar CBT Siswa (Admin Only) */}
       {currentUser.role === 'admin' && activeTab === 'cbt_locks' && (
@@ -2236,6 +3005,19 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
           onStartExam(targetExam, student);
           setLoginModalExam(null);
         }}
+      />
+
+      {/* Print Report Modal (Exam Recap, Class Leger, Student Transcript) */}
+      <CBTPrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        printType={printModalType}
+        exam={printModalExam}
+        exams={exams}
+        attempts={attempts}
+        students={allUsers.filter((u) => u.role === 'student')}
+        targetClass={printModalTargetClass}
+        selectedStudent={printModalStudent}
       />
     </div>
   );
