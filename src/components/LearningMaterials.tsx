@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   BookOpen,
   Plus,
@@ -17,7 +17,12 @@ import {
   Download,
   X,
   PlusCircle,
-  HelpCircle
+  HelpCircle,
+  ExternalLink,
+  Link2,
+  Paperclip,
+  UploadCloud,
+  FileCheck
 } from 'lucide-react';
 import { LearningMaterial, UserRole, FormulaSnippet } from '../types';
 
@@ -54,7 +59,14 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
   const [newFormulaTitle, setNewFormulaTitle] = useState('');
   const [newFormulaText, setNewFormulaText] = useState('');
   const [newFormulaExplanation, setNewFormulaExplanation] = useState('');
-  const [formAttachment, setFormAttachment] = useState('');
+  
+  // Link and file upload states
+  const [formEmbedLink, setFormEmbedLink] = useState('');
+  const [formAttachmentName, setFormAttachmentName] = useState('');
+  const [formAttachmentData, setFormAttachmentData] = useState('');
+  const [formAttachmentSize, setFormAttachmentSize] = useState('');
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const grades = ['Semua', 'Kelas 7', 'Kelas 8', 'Kelas 9', 'Umum'];
 
@@ -77,7 +89,10 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
     setFormContent('');
     setFormKeyPoints('Konsep dasar materi\nMetode penyelesaian soal\nContoh kasus terapan');
     setFormFormulas([]);
-    setFormAttachment('Modul_Ringkasan_Matematika.pdf');
+    setFormEmbedLink('');
+    setFormAttachmentName('Modul_Ringkasan_Matematika.pdf');
+    setFormAttachmentData('');
+    setFormAttachmentSize('1.2 MB');
     setIsEditorOpen(true);
   };
 
@@ -91,8 +106,91 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
     setFormContent(m.content);
     setFormKeyPoints((m.keyPoints || []).join('\n'));
     setFormFormulas(m.formulas || []);
-    setFormAttachment(m.attachmentName || '');
+    setFormEmbedLink(m.embedLink || '');
+    setFormAttachmentName(m.attachmentName || '');
+    setFormAttachmentData(m.attachmentData || '');
+    setFormAttachmentSize(m.attachmentSize || '');
     setIsEditorOpen(true);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Format size
+    let sizeStr = `${(file.size / 1024).toFixed(1)} KB`;
+    if (file.size > 1024 * 1024) {
+      sizeStr = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setFormAttachmentName(file.name);
+      setFormAttachmentSize(sizeStr);
+      setFormAttachmentData(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAttachment = () => {
+    setFormAttachmentName('');
+    setFormAttachmentData('');
+    setFormAttachmentSize('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDownloadAttachment = (material: LearningMaterial) => {
+    const fileName = material.attachmentName || 'Modul_Matematika_Aliemath.pdf';
+    if (material.attachmentData) {
+      const a = document.createElement('a');
+      a.href = material.attachmentData;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      // Create a downloadable document text/pdf blob representation
+      const fileContent = `=====================================================
+ALIEMATH.MY.ID - DOKUMEN MATERI PEMBELAJARAN
+=====================================================
+Judul Materi: ${material.title}
+Mata Pelajaran: ${material.subject}
+Tingkat Kelas: ${material.gradeLevel}
+Bab / Modul: ${material.chapter}
+Penyusun: ${material.author}
+Tanggal: ${material.updatedAt}
+
+RINGKASAN & KOMPETENSI:
+${material.summary}
+
+POIN PENTING:
+${(material.keyPoints || []).map((p, i) => `${i + 1}. ${p}`).join('\n')}
+
+FORMULA & RUMUS MATEMATIKA:
+${(material.formulas || []).map((f) => `• [${f.title}]: ${f.formula} (${f.explanation || '-'})`).join('\n')}
+
+URAIAN MATERI LENGKAP:
+${material.content}
+
+${material.embedLink ? `\nTautan Referensi: ${material.embedLink}` : ''}
+=====================================================
+Unduhan resmi portal Aliemath.my.id
+`;
+      const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName.endsWith('.pdf') || fileName.endsWith('.doc') || fileName.endsWith('.docx')
+        ? fileName
+        : `${fileName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   };
 
   const handleAddFormulaSnippet = () => {
@@ -136,7 +234,10 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
         content: formContent,
         keyPoints: keyPointsArray,
         formulas: formFormulas,
-        attachmentName: formAttachment || undefined,
+        embedLink: formEmbedLink.trim() || undefined,
+        attachmentName: formAttachmentName.trim() || undefined,
+        attachmentData: formAttachmentData || undefined,
+        attachmentSize: formAttachmentSize || undefined,
         updatedAt: nowStr,
       });
     } else {
@@ -149,7 +250,10 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
         content: formContent,
         keyPoints: keyPointsArray,
         formulas: formFormulas,
-        attachmentName: formAttachment || undefined,
+        embedLink: formEmbedLink.trim() || undefined,
+        attachmentName: formAttachmentName.trim() || undefined,
+        attachmentData: formAttachmentData || undefined,
+        attachmentSize: formAttachmentSize || undefined,
         createdAt: nowStr,
         updatedAt: nowStr,
         author: 'Admin Aliemath',
@@ -265,6 +369,39 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
                     )}
                   </div>
                 )}
+
+                {/* Badges for Attached Link and Document */}
+                <div className="mt-3 flex flex-wrap items-center gap-1.5 pt-1">
+                  {mat.embedLink && (
+                    <a
+                      href={mat.embedLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[10px] border border-indigo-200 transition-colors"
+                      title="Klik untuk membuka tautan materi langsung"
+                    >
+                      <Link2 className="w-3 h-3" />
+                      <span>Tautan Eksternal</span>
+                      <ExternalLink className="w-2.5 h-2.5 ml-0.5 opacity-70" />
+                    </a>
+                  )}
+
+                  {mat.attachmentName && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadAttachment(mat);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold text-[10px] border border-emerald-200 transition-colors"
+                      title={`Klik untuk mengunduh ${mat.attachmentName}`}
+                    >
+                      <Download className="w-3 h-3" />
+                      <span className="max-w-[120px] truncate">{mat.attachmentName}</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
@@ -333,6 +470,32 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
               </div>
             </div>
 
+            {/* Embed Link Interactive Card (Direct clickable for students) */}
+            {activeMaterial.embedLink && (
+              <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-2 rounded-lg bg-indigo-600 text-white shrink-0 mt-0.5">
+                    <Link2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-indigo-950">Tautan Materi / Referensi Eksternal</div>
+                    <div className="text-[11px] text-indigo-700 font-mono line-clamp-1 max-w-md">
+                      {activeMaterial.embedLink}
+                    </div>
+                  </div>
+                </div>
+                <a
+                  href={activeMaterial.embedLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-colors shrink-0"
+                >
+                  <span>Buka Link Materi</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            )}
+
             {/* Summary Box */}
             <div className="mt-5 p-4 rounded-xl bg-blue-50/70 border border-blue-200/60 text-xs text-blue-950 leading-relaxed">
               <strong className="block text-blue-800 font-bold mb-1">Ikhtisar & Kompetensi:</strong>
@@ -394,18 +557,34 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
               </div>
             </div>
 
-            {/* Attachment preview / download simulator */}
+            {/* Attachment preview and real file download for students */}
             {activeMaterial.attachmentName && (
-              <div className="mt-6 flex items-center justify-between p-3 rounded-xl bg-slate-100 border border-slate-200 text-xs">
-                <div className="flex items-center gap-2 text-slate-700 font-medium">
-                  <FileText className="w-4 h-4 text-blue-600" />
-                  <span>Lampiran: {activeMaterial.attachmentName}</span>
+              <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-emerald-950 flex items-center gap-2">
+                      <span>{activeMaterial.attachmentName}</span>
+                      {activeMaterial.attachmentSize && (
+                        <span className="text-[10px] font-normal text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                          {activeMaterial.attachmentSize}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-emerald-700 mt-0.5">
+                      Berkas modul pendukung resmi (format DOC/PDF) untuk dipelajari secara mandiri.
+                    </p>
+                  </div>
                 </div>
                 <button
-                  onClick={() => alert(`Mengunduh berkas ${activeMaterial.attachmentName}...`)}
-                  className="inline-flex items-center gap-1 font-bold text-blue-600 hover:text-blue-800"
+                  type="button"
+                  onClick={() => handleDownloadAttachment(activeMaterial)}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors shrink-0"
                 >
-                  <Download className="w-3.5 h-3.5" /> Unduh Dokumen
+                  <Download className="w-4 h-4" />
+                  <span>Unduh File Materi</span>
                 </button>
               </div>
             )}
@@ -512,6 +691,64 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
                 />
               </div>
 
+              {/* Form Input for Embedding Link */}
+              <div className="p-3.5 bg-indigo-50/50 rounded-xl border border-indigo-200/70 space-y-2">
+                <label className="block font-bold text-indigo-950 flex items-center gap-1.5">
+                  <Link2 className="w-4 h-4 text-indigo-600" />
+                  Sematkan Tautan / Link Materi (Opsional)
+                </label>
+                <p className="text-[11px] text-indigo-700">
+                  Siswa dapat langsung mengklik link ini untuk membuka modul Google Drive, video pembelajaran, atau situs referensi.
+                </p>
+                <input
+                  type="url"
+                  placeholder="https://drive.google.com/... atau https://youtube.com/..."
+                  value={formEmbedLink}
+                  onChange={(e) => setFormEmbedLink(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-indigo-200 bg-white text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
+                />
+              </div>
+
+              {/* Form Input for File Upload (PDF / DOC) */}
+              <div className="p-3.5 bg-emerald-50/50 rounded-xl border border-emerald-200/70 space-y-2">
+                <label className="block font-bold text-emerald-950 flex items-center gap-1.5">
+                  <Paperclip className="w-4 h-4 text-emerald-600" />
+                  Unggah Berkas Materi / Modul (PDF / DOC) (Opsional)
+                </label>
+                <p className="text-[11px] text-emerald-700">
+                  Siswa dapat langsung mengunduh berkas ini. Format yang didukung: .pdf, .doc, .docx.
+                </p>
+
+                {formAttachmentName ? (
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-white border border-emerald-200">
+                    <div className="flex items-center gap-2">
+                      <FileCheck className="w-4 h-4 text-emerald-600" />
+                      <span className="font-semibold text-emerald-900">{formAttachmentName}</span>
+                      {formAttachmentSize && (
+                        <span className="text-[10px] text-emerald-600 font-mono">({formAttachmentSize})</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveAttachment}
+                      className="text-rose-500 hover:text-rose-700 p-1 text-xs font-semibold"
+                    >
+                      Hapus / Ganti
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={handleFileUpload}
+                      className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700 cursor-pointer"
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Dynamic Formula Builder */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                 <label className="block font-bold text-slate-800">Rumus Matematika / Formula Terkait</label>
@@ -594,17 +831,6 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
                   value={formContent}
                   onChange={(e) => setFormContent(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none font-sans"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nama Berkas Lampiran PDF / Rangkuman</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Modul_Matematika_Kelas10.pdf"
-                  value={formAttachment}
-                  onChange={(e) => setFormAttachment(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
 

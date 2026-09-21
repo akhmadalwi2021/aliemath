@@ -11,6 +11,7 @@ import { LearningMaterials } from './components/LearningMaterials';
 import { CBTSection } from './components/CBTSection';
 import { CBTExamModal } from './components/CBTExamModal';
 import { StudentManagement } from './components/StudentManagement';
+import { AdminManagement } from './components/AdminManagement';
 import { GitHubSyncModal } from './components/GitHubSyncModal';
 import { AuthModal } from './components/AuthModal';
 import {
@@ -21,6 +22,7 @@ import {
   CBTExam,
   CBTAttempt,
   CBTQuestion,
+  CBTSessionLock,
   GitHubSyncConfig
 } from './types';
 import { loadDatabase, saveDatabase } from './services/storageService';
@@ -151,10 +153,153 @@ export default function App() {
   };
 
   const handleCompleteExamAttempt = (attempt: CBTAttempt) => {
+    setDatabase((prev) => {
+      const targetSessionId = `lock_${attempt.studentId}_${attempt.examId}`;
+      const updatedLocks = (prev.cbtSessionLocks || []).map((l) =>
+        l.id === targetSessionId
+          ? {
+              ...l,
+              isLocked: false,
+              isCompleted: true,
+              savedAnswers: attempt.answers || l.savedAnswers,
+              updatedAt: new Date().toISOString(),
+            }
+          : l
+      );
+
+      return {
+        ...prev,
+        attempts: [attempt, ...prev.attempts],
+        cbtSessionLocks: updatedLocks,
+      };
+    });
+  };
+
+  const handleLockExamSession = (lockInfo: {
+    examId: string;
+    examTitle: string;
+    student: User;
+    reason: string;
+    answers: Record<string, any>;
+    flagged: string[];
+    secondsRemaining: number;
+  }) => {
+    setDatabase((prev) => {
+      const existingLocks = prev.cbtSessionLocks || [];
+      const targetSessionId = `lock_${lockInfo.student.id}_${lockInfo.examId}`;
+      const existing = existingLocks.find((l) => l.id === targetSessionId);
+
+      const updatedLock: CBTSessionLock = {
+        id: targetSessionId,
+        studentId: lockInfo.student.id,
+        studentName: lockInfo.student.fullName,
+        studentClass: lockInfo.student.classGroup || 'Umum',
+        studentNisn: lockInfo.student.nisn,
+        studentSession: lockInfo.student.examSession || lockInfo.student.session,
+        studentExamTime: lockInfo.student.examTime,
+        examId: lockInfo.examId,
+        examTitle: lockInfo.examTitle,
+        isLocked: true,
+        lockReason: lockInfo.reason,
+        lockedAt: new Date().toISOString(),
+        violationCount: (existing?.violationCount || 0) + 1,
+        savedAnswers: lockInfo.answers,
+        savedFlagged: lockInfo.flagged,
+        savedSecondsRemaining: lockInfo.secondsRemaining,
+        isCompleted: false,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const newLocks = existing
+        ? existingLocks.map((l) => (l.id === targetSessionId ? updatedLock : l))
+        : [updatedLock, ...existingLocks];
+
+      return {
+        ...prev,
+        cbtSessionLocks: newLocks,
+      };
+    });
+  };
+
+  const handleUnlockExamSession = (sessionId: string, adminName?: string) => {
+    setDatabase((prev) => {
+      const existingLocks = prev.cbtSessionLocks || [];
+      const newLocks = existingLocks.map((l) =>
+        l.id === sessionId
+          ? {
+              ...l,
+              isLocked: false,
+              unlockedBy: adminName || currentUser.fullName,
+              unlockedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }
+          : l
+      );
+      return {
+        ...prev,
+        cbtSessionLocks: newLocks,
+      };
+    });
+  };
+
+  const handleResetExamSession = (sessionId: string) => {
     setDatabase((prev) => ({
       ...prev,
-      attempts: [attempt, ...prev.attempts],
+      cbtSessionLocks: (prev.cbtSessionLocks || []).filter((l) => l.id !== sessionId),
     }));
+  };
+
+  const handleUpdateSessionProgress = (
+    examId: string,
+    studentId: string,
+    progress: { answers: Record<string, any>; flagged: string[]; secondsRemaining: number }
+  ) => {
+    setDatabase((prev) => {
+      const existingLocks = prev.cbtSessionLocks || [];
+      const targetSessionId = `lock_${studentId}_${examId}`;
+      const existing = existingLocks.find((l) => l.id === targetSessionId);
+
+      if (existing) {
+        const newLocks = existingLocks.map((l) =>
+          l.id === targetSessionId
+            ? {
+                ...l,
+                savedAnswers: progress.answers,
+                savedFlagged: progress.flagged,
+                savedSecondsRemaining: progress.secondsRemaining,
+                updatedAt: new Date().toISOString(),
+              }
+            : l
+        );
+        return { ...prev, cbtSessionLocks: newLocks };
+      }
+
+      const examObj = prev.exams.find((e) => e.id === examId);
+      const userObj = prev.users.find((u) => u.id === studentId) || currentUser;
+      const newLockRecord: CBTSessionLock = {
+        id: targetSessionId,
+        studentId: userObj.id,
+        studentName: userObj.fullName,
+        studentClass: userObj.classGroup || 'Umum',
+        studentNisn: userObj.nisn,
+        studentSession: userObj.examSession || userObj.session,
+        studentExamTime: userObj.examTime,
+        examId,
+        examTitle: examObj?.title || 'Ujian CBT',
+        isLocked: false,
+        violationCount: 0,
+        savedAnswers: progress.answers,
+        savedFlagged: progress.flagged,
+        savedSecondsRemaining: progress.secondsRemaining,
+        isCompleted: false,
+        updatedAt: new Date().toISOString(),
+      };
+
+      return {
+        ...prev,
+        cbtSessionLocks: [newLockRecord, ...existingLocks],
+      };
+    });
   };
 
   // ---------------- Student Actions ----------------
@@ -183,6 +328,62 @@ export default function App() {
       ...prev,
       users: prev.users.filter((u) => u.id !== id),
     }));
+  };
+
+  // ---------------- Admin Actions (Super Admin Exclusive - Req 5) ----------------
+  const handleAddAdmin = (newAdmin: { fullName: string; username: string; password?: string }) => {
+    if (!currentUser.isSuperAdmin) {
+      alert('Akses Ditolak: Hanya Guru Utama (Super Admin) yang berwenang menambahkan admin baru.');
+      return;
+    }
+    const adminUser: User = {
+      id: `usr_adm_${Date.now()}`,
+      fullName: newAdmin.fullName,
+      username: newAdmin.username,
+      password: newAdmin.password || '123456',
+      role: 'admin',
+      isSuperAdmin: false,
+      status: 'active',
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    setDatabase((prev) => ({
+      ...prev,
+      users: [...prev.users, adminUser],
+    }));
+  };
+
+  const handleUpdateAdminPassword = (adminId: string, newPassword: string) => {
+    if (!currentUser.isSuperAdmin) {
+      alert('Akses Ditolak: Hanya Guru Utama (Super Admin) yang berwenang mengatur dan mengganti password akun admin.');
+      return;
+    }
+    setDatabase((prev) => ({
+      ...prev,
+      users: prev.users.map((u) => (u.id === adminId ? { ...u, password: newPassword } : u)),
+    }));
+    if (currentUser.id === adminId) {
+      setCurrentUser((prev) => ({ ...prev, password: newPassword }));
+    }
+  };
+
+  const handleDeleteAdmin = (adminId: string) => {
+    if (!currentUser.isSuperAdmin) {
+      alert('Akses Ditolak: Hanya Guru Utama (Super Admin) yang berwenang menghapus admin.');
+      return;
+    }
+    const target = database.users.find((u) => u.id === adminId);
+    if (target?.isSuperAdmin) {
+      alert('Peringatan: Akun Guru Utama / Super Admin dilindungi dan tidak dapat dihapus.');
+      return;
+    }
+    setDatabase((prev) => ({
+      ...prev,
+      users: prev.users.filter((u) => u.id !== adminId),
+    }));
+  };
+
+  const handleSwitchAdminUser = (admin: User) => {
+    setCurrentUser(admin);
   };
 
   const handleUpdateGitHubConfig = (config: GitHubSyncConfig) => {
@@ -217,9 +418,12 @@ export default function App() {
           activeTab={activeTab}
           onSelectTab={setActiveTab}
           userRole={currentUser.role}
+          isSuperAdmin={currentUser.isSuperAdmin}
           pendingTasksCount={pendingTasksCount}
           totalMaterialsCount={database.materials.length}
           totalStudentsCount={database.users.filter((u) => u.role === 'student').length}
+          totalAdminsCount={database.users.filter((u) => u.role === 'admin').length}
+          lockedSessionsCount={(database.cbtSessionLocks || []).filter((l) => l.isLocked).length}
         />
 
         {/* Center / Main Content Area */}
@@ -248,12 +452,15 @@ export default function App() {
             <CBTSection
               exams={database.exams}
               attempts={database.attempts}
+              cbtSessionLocks={database.cbtSessionLocks || []}
               currentUser={currentUser}
               onStartExam={(exam) => setActiveCBTExam(exam)}
               onAddExam={handleAddExam}
               onEditExam={handleEditExam}
               onDeleteExam={handleDeleteExam}
               onUpdateQuestions={handleUpdateQuestions}
+              onUnlockExamSession={handleUnlockExamSession}
+              onResetExamSession={handleResetExamSession}
             />
           )}
 
@@ -261,10 +468,23 @@ export default function App() {
             <StudentManagement
               users={database.users}
               attempts={database.attempts}
+              cbtSessionLocks={database.cbtSessionLocks || []}
+              onUnlockExamSession={handleUnlockExamSession}
               onAddStudent={handleAddStudent}
               onEditStudent={handleEditStudent}
               onDeleteStudent={handleDeleteStudent}
               onSwitchToStudent={handleSwitchToStudent}
+            />
+          )}
+
+          {activeTab === 'admins' && currentUser.role === 'admin' && (
+            <AdminManagement
+              currentUser={currentUser}
+              users={database.users}
+              onAddAdmin={handleAddAdmin}
+              onUpdateAdminPassword={handleUpdateAdminPassword}
+              onDeleteAdmin={handleDeleteAdmin}
+              onSwitchAdminUser={handleSwitchAdminUser}
             />
           )}
 
@@ -330,6 +550,16 @@ export default function App() {
         <CBTExamModal
           exam={activeCBTExam}
           student={currentUser}
+          initialSessionLock={(database.cbtSessionLocks || []).find(
+            (l) => l.studentId === currentUser.id && l.examId === activeCBTExam.id
+          )}
+          onUpdateSessionProgress={(progress) =>
+            handleUpdateSessionProgress(activeCBTExam.id, currentUser.id, progress)
+          }
+          onLockExamSession={handleLockExamSession}
+          onUnlockExamSession={(sessionId) =>
+            handleUnlockExamSession(sessionId, currentUser.fullName)
+          }
           onCompleteExam={handleCompleteExamAttempt}
           onClose={() => setActiveCBTExam(null)}
         />

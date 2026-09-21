@@ -102,7 +102,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {currentUser.fullName}
                   </div>
                   <div className="text-[10px] text-slate-500 font-medium">
-                    {currentUser.role === 'admin' ? 'Administrator / Guru' : `Siswa (${currentUser.classGroup || 'Aktif'})`}
+                    {currentUser.role === 'admin'
+                      ? currentUser.isSuperAdmin
+                        ? 'Guru Utama (Super Admin)'
+                        : 'Guru Pengampu (Admin)'
+                      : `Siswa (${currentUser.classGroup || 'Aktif'})`}
                   </div>
                 </div>
               </div>

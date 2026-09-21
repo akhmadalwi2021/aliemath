@@ -8,6 +8,10 @@ export interface User {
   password?: string;
   nisn?: string;
   classGroup?: string;
+  session?: string; // Sesi 1, Sesi 2, Sesi 3, dll
+  examSession?: string; // Sesi 1, Sesi 2, alias
+  examTime?: string; // 07:30 - 09:30 WIB, dll
+  isSuperAdmin?: boolean; // Hanya guru/admin utama yang bisa kelola admin lain
   status: 'active' | 'inactive';
   createdAt: string;
 }
@@ -23,6 +27,11 @@ export interface NewsItem {
   publishDate: string;
   isPinned: boolean;
   coverGradient?: string;
+  imageUrl?: string; // Upload gambar jpeg/jpg
+  embedLink?: string; // Link sematan eksternal (opsi)
+  attachmentName?: string; // File lampiran doc / pdf
+  attachmentData?: string; // Data base64 atau URL unduh
+  attachmentSize?: string;
   tags: string[];
 }
 
@@ -43,24 +52,38 @@ export interface LearningMaterial {
   keyPoints: string[];
   formulas: FormulaSnippet[];
   videoUrl?: string;
-  attachmentName?: string;
+  embedLink?: string; // Sematkan link materi (opsi)
+  attachmentName?: string; // File lampiran doc / pdf
+  attachmentData?: string; // Data base64 atau URL unduh
+  attachmentSize?: string;
   createdAt: string;
   updatedAt: string;
   author: string;
 }
 
+export type CBTQuestionType = 'pg_tunggal' | 'pg_kompleks' | 'mcma';
+
+export interface ComplexStatement {
+  id: string;
+  statementText: string;
+  correctValue: 'benar' | 'salah';
+}
+
 export interface CBTQuestionOption {
-  id: string; // 'A', 'B', 'C', 'D', 'E'
+  id: string; // 'A' | 'B' | 'C' | 'D'
   text: string;
 }
 
 export interface CBTQuestion {
   id: string;
   number: number;
+  questionType: CBTQuestionType; // 'pg_tunggal' | 'pg_kompleks' | 'mcma'
   questionText: string;
   questionFormula?: string;
-  options: CBTQuestionOption[];
-  correctOptionId: string;
+  options: CBTQuestionOption[]; // Pilihan A, B, C, D (maksimal 4)
+  correctOptionId?: string; // Untuk pg_tunggal (e.g. 'A')
+  correctOptionIds?: string[]; // Untuk mcma (e.g. ['A', 'C'])
+  statements?: ComplexStatement[]; // Untuk pg_kompleks (pernyataan benar/salah)
   explanation: string;
   points: number;
 }
@@ -89,9 +112,11 @@ export interface CBTAttempt {
   studentName: string;
   studentClass: string;
   studentNisn?: string;
-  answers: Record<string, string>; // questionId -> optionId
+  studentSession?: string;
+  studentExamTime?: string;
+  answers: Record<string, any>; // questionId -> string | string[] | Record<string, 'benar' | 'salah'>
   flaggedQuestions: string[];
-  score: number; // e.g. 80
+  score: number; // e.g. 85
   correctCount: number;
   wrongCount: number;
   totalQuestions: number;
@@ -112,11 +137,36 @@ export interface GitHubSyncConfig {
   lastSyncedAt?: string;
 }
 
+export interface CBTSessionLock {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentClass: string;
+  studentNisn?: string;
+  studentSession?: string;
+  studentExamTime?: string;
+  examId: string;
+  examTitle: string;
+  isLocked: boolean; // true = sedang terblokir karena keluar dari layar CBT
+  lockReason?: string;
+  lockedAt?: string;
+  unlockedBy?: string;
+  unlockedAt?: string;
+  violationCount: number;
+  savedAnswers: Record<string, any>; // Jawaban asal siswa tetap tersimpan aman
+  savedFlagged: string[];
+  savedSecondsRemaining: number;
+  isCompleted?: boolean;
+  updatedAt: string;
+}
+
 export interface AppDatabase {
   users: User[];
   news: NewsItem[];
   materials: LearningMaterial[];
   exams: CBTExam[];
   attempts: CBTAttempt[];
+  cbtSessionLocks?: CBTSessionLock[];
   gitHubConfig?: GitHubSyncConfig;
 }
+

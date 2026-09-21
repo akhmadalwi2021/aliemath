@@ -1,25 +1,68 @@
 import { AppDatabase, GitHubSyncConfig } from '../types';
 import { INITIAL_DATABASE } from '../data/initialData';
 
-const STORAGE_KEY = 'aliemath_db_v1';
+const STORAGE_KEY = 'aliemath_db_v2';
+const LEGACY_STORAGE_KEY = 'aliemath_db_v1';
 
 export function loadDatabase(): AppDatabase {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      saveDatabase(INITIAL_DATABASE);
-      return INITIAL_DATABASE;
+      // Check legacy key
+      const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacyRaw) {
+        raw = legacyRaw;
+      } else {
+        saveDatabase(INITIAL_DATABASE);
+        return INITIAL_DATABASE;
+      }
     }
+
     const parsed = JSON.parse(raw);
-    // Ensure all collections exist
-    return {
-      users: parsed.users || INITIAL_DATABASE.users,
+
+    // Normalize users: ensure admin has isSuperAdmin
+    const users = (parsed.users || INITIAL_DATABASE.users).map((u: any, idx: number) => {
+      const isFirstAdmin = u.role === 'admin' && (u.username === 'admin' || u.id === 'usr_admin' || idx === 0);
+      return {
+        ...u,
+        isSuperAdmin: u.isSuperAdmin !== undefined ? u.isSuperAdmin : isFirstAdmin,
+        session: u.session || (u.role === 'student' ? 'Sesi 1' : undefined),
+        examTime: u.examTime || (u.role === 'student' ? '07:30 - 09:30 WIB' : undefined),
+      };
+    });
+
+    // Normalize exams: ensure options are only A, B, C, D and questionType is defined
+    const exams = (parsed.exams || INITIAL_DATABASE.exams).map((exam: any) => ({
+      ...exam,
+      questions: (exam.questions || []).map((q: any) => {
+        const filteredOptions = (q.options || [])
+          .filter((opt: any) => ['A', 'B', 'C', 'D'].includes(opt.id))
+          .slice(0, 4);
+
+        return {
+          ...q,
+          questionType: q.questionType || 'pg_tunggal',
+          options: filteredOptions,
+          correctOptionId: q.correctOptionId || (filteredOptions[0] ? filteredOptions[0].id : 'A'),
+          correctOptionIds: q.correctOptionIds || (q.correctOptionId ? [q.correctOptionId] : ['A']),
+          statements: q.statements || [],
+        };
+      }),
+    }));
+
+    const db: AppDatabase = {
+      users,
       news: parsed.news || INITIAL_DATABASE.news,
       materials: parsed.materials || INITIAL_DATABASE.materials,
-      exams: parsed.exams || INITIAL_DATABASE.exams,
+      exams,
       attempts: parsed.attempts || INITIAL_DATABASE.attempts,
+      cbtSessionLocks: parsed.cbtSessionLocks || [],
       gitHubConfig: parsed.gitHubConfig || INITIAL_DATABASE.gitHubConfig,
     };
+
+    // Resave to new key
+    saveDatabase(db);
+    return db;
   } catch (err) {
     console.error('Failed to load database from localStorage, falling back to initial data:', err);
     return INITIAL_DATABASE;

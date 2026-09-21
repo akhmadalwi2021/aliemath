@@ -23,37 +23,56 @@ import {
   Check,
   X,
   PlusCircle,
-  Eye
+  Eye,
+  CheckSquare,
+  Layers,
+  Lock,
+  Unlock,
+  ShieldAlert,
+  AlertOctagon,
+  RefreshCw,
+  Info
 } from 'lucide-react';
-import { CBTExam, CBTAttempt, CBTQuestion, User, UserRole } from '../types';
+import { CBTExam, CBTAttempt, CBTQuestion, CBTQuestionType, ComplexStatement, CBTSessionLock, User, UserRole } from '../types';
 
 interface CBTSectionProps {
   exams: CBTExam[];
   attempts: CBTAttempt[];
+  cbtSessionLocks?: CBTSessionLock[];
   currentUser: User;
   onStartExam: (exam: CBTExam) => void;
   onAddExam: (newExam: Omit<CBTExam, 'id'>) => void;
   onEditExam: (exam: CBTExam) => void;
   onDeleteExam: (id: string) => void;
   onUpdateQuestions: (examId: string, questions: CBTQuestion[]) => void;
+  onUnlockExamSession?: (sessionId: string) => void;
+  onResetExamSession?: (sessionId: string) => void;
 }
 
 export const CBTSection: React.FC<CBTSectionProps> = ({
   exams,
   attempts,
+  cbtSessionLocks = [],
   currentUser,
   onStartExam,
   onAddExam,
   onEditExam,
   onDeleteExam,
   onUpdateQuestions,
+  onUnlockExamSession,
+  onResetExamSession,
 }) => {
   // Tabs:
   // For Student: 'active_tasks' | 'history' | 'grades'
-  // For Admin: 'manage_exams' | 'question_bank' | 'student_results'
+  // For Admin: 'manage_exams' | 'question_bank' | 'student_results' | 'cbt_locks'
   const [activeTab, setActiveTab] = useState<string>(
     currentUser.role === 'admin' ? 'manage_exams' : 'active_tasks'
   );
+
+  const [searchLockQuery, setSearchLockQuery] = useState('');
+  const [filterLockStatus, setFilterLockStatus] = useState<'all' | 'locked' | 'unlocked'>('all');
+
+  const lockedSessionsCount = cbtSessionLocks.filter((l) => l.isLocked).length;
 
   const [selectedAttemptForReview, setSelectedAttemptForReview] = useState<CBTAttempt | null>(null);
   const [selectedExamForQuestions, setSelectedExamForQuestions] = useState<CBTExam | null>(null);
@@ -69,17 +88,23 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
   const [formExamPassing, setFormExamPassing] = useState(75);
   const [formExamIsActive, setFormExamIsActive] = useState(true);
 
-  // Admin Question Form State
+  // Admin Question Form State (PG Tunggal, PG Kompleks, MCMA)
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<CBTQuestion | null>(null);
+  const [formQuestionType, setFormQuestionType] = useState<CBTQuestionType>('pg_tunggal');
   const [formQuestionText, setFormQuestionText] = useState('');
   const [formQuestionFormula, setFormQuestionFormula] = useState('');
   const [formOptA, setFormOptA] = useState('');
   const [formOptB, setFormOptB] = useState('');
   const [formOptC, setFormOptC] = useState('');
   const [formOptD, setFormOptD] = useState('');
-  const [formOptE, setFormOptE] = useState('');
   const [formCorrectOpt, setFormCorrectOpt] = useState('A');
+  const [formCorrectOptIds, setFormCorrectOptIds] = useState<string[]>(['A']);
+  const [formStatements, setFormStatements] = useState<ComplexStatement[]>([
+    { id: 'stmt_1', statementText: '', correctValue: 'benar' },
+    { id: 'stmt_2', statementText: '', correctValue: 'salah' },
+    { id: 'stmt_3', statementText: '', correctValue: 'benar' },
+  ]);
   const [formExplanation, setFormExplanation] = useState('');
   const [formPoints, setFormPoints] = useState(20);
 
@@ -152,14 +177,20 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
   const handleOpenAddQuestion = (exam: CBTExam) => {
     setSelectedExamForQuestions(exam);
     setEditingQuestion(null);
+    setFormQuestionType('pg_tunggal');
     setFormQuestionText('');
     setFormQuestionFormula('');
     setFormOptA('');
     setFormOptB('');
     setFormOptC('');
     setFormOptD('');
-    setFormOptE('');
     setFormCorrectOpt('A');
+    setFormCorrectOptIds(['A']);
+    setFormStatements([
+      { id: `stmt_${Date.now()}_1`, statementText: '', correctValue: 'benar' },
+      { id: `stmt_${Date.now()}_2`, statementText: '', correctValue: 'salah' },
+      { id: `stmt_${Date.now()}_3`, statementText: '', correctValue: 'benar' },
+    ]);
     setFormExplanation('');
     setFormPoints(20);
     setIsQuestionModalOpen(true);
@@ -168,16 +199,32 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
   const handleOpenEditQuestion = (exam: CBTExam, q: CBTQuestion) => {
     setSelectedExamForQuestions(exam);
     setEditingQuestion(q);
+    setFormQuestionType(q.questionType || 'pg_tunggal');
     setFormQuestionText(q.questionText);
     setFormQuestionFormula(q.questionFormula || '');
-    setFormOptA(q.options.find((o) => o.id === 'A')?.text || '');
-    setFormOptB(q.options.find((o) => o.id === 'B')?.text || '');
-    setFormOptC(q.options.find((o) => o.id === 'C')?.text || '');
-    setFormOptD(q.options.find((o) => o.id === 'D')?.text || '');
-    setFormOptE(q.options.find((o) => o.id === 'E')?.text || '');
-    setFormCorrectOpt(q.correctOptionId);
+    setFormOptA(q.options?.find((o) => o.id === 'A')?.text || '');
+    setFormOptB(q.options?.find((o) => o.id === 'B')?.text || '');
+    setFormOptC(q.options?.find((o) => o.id === 'C')?.text || '');
+    setFormOptD(q.options?.find((o) => o.id === 'D')?.text || '');
+    setFormCorrectOpt(q.correctOptionId || 'A');
+    setFormCorrectOptIds(
+      q.correctOptionIds && q.correctOptionIds.length > 0
+        ? q.correctOptionIds
+        : q.correctOptionId
+        ? [q.correctOptionId]
+        : ['A']
+    );
+    setFormStatements(
+      q.statements && q.statements.length > 0
+        ? q.statements
+        : [
+            { id: `stmt_${Date.now()}_1`, statementText: '', correctValue: 'benar' },
+            { id: `stmt_${Date.now()}_2`, statementText: '', correctValue: 'salah' },
+            { id: `stmt_${Date.now()}_3`, statementText: '', correctValue: 'benar' },
+          ]
+    );
     setFormExplanation(q.explanation);
-    setFormPoints(q.points);
+    setFormPoints(q.points || 20);
     setIsQuestionModalOpen(true);
   };
 
@@ -185,13 +232,15 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
     e.preventDefault();
     if (!selectedExamForQuestions || !formQuestionText.trim()) return;
 
+    // Only options A, B, C, D (4 options strictly, no E)
     const options = [
       { id: 'A', text: formOptA },
       { id: 'B', text: formOptB },
       { id: 'C', text: formOptC },
       { id: 'D', text: formOptD },
-      { id: 'E', text: formOptE },
     ].filter((o) => o.text.trim() !== '');
+
+    const validStatements = formStatements.filter((s) => s.statementText.trim() !== '');
 
     let updatedQuestions: CBTQuestion[] = [...selectedExamForQuestions.questions];
 
@@ -200,10 +249,13 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
         q.id === editingQuestion.id
           ? {
               ...q,
+              questionType: formQuestionType,
               questionText: formQuestionText,
               questionFormula: formQuestionFormula || undefined,
-              options,
-              correctOptionId: formCorrectOpt,
+              options: formQuestionType === 'pg_kompleks' ? [] : options,
+              correctOptionId: formQuestionType === 'pg_tunggal' ? formCorrectOpt : undefined,
+              correctOptionIds: formQuestionType === 'mcma' ? formCorrectOptIds : undefined,
+              statements: formQuestionType === 'pg_kompleks' ? validStatements : undefined,
               explanation: formExplanation,
               points: Number(formPoints),
             }
@@ -213,10 +265,13 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
       const newQ: CBTQuestion = {
         id: `q_${Date.now()}`,
         number: updatedQuestions.length + 1,
+        questionType: formQuestionType,
         questionText: formQuestionText,
         questionFormula: formQuestionFormula || undefined,
-        options,
-        correctOptionId: formCorrectOpt,
+        options: formQuestionType === 'pg_kompleks' ? [] : options,
+        correctOptionId: formQuestionType === 'pg_tunggal' ? formCorrectOpt : undefined,
+        correctOptionIds: formQuestionType === 'mcma' ? formCorrectOptIds : undefined,
+        statements: formQuestionType === 'pg_kompleks' ? validStatements : undefined,
         explanation: formExplanation,
         points: Number(formPoints),
       };
@@ -354,6 +409,25 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
             >
               Rekapitulasi Nilai Siswa ({attempts.length})
             </button>
+            <button
+              id="tab-cbt-locks"
+              onClick={() => setActiveTab('cbt_locks')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'cbt_locks'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : lockedSessionsCount > 0
+                  ? 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 font-bold'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Monitor & Reset Layar Siswa</span>
+              {lockedSessionsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-600 text-white animate-pulse">
+                  {lockedSessionsCount} Terkunci
+                </span>
+              )}
+            </button>
           </>
         )}
       </div>
@@ -372,11 +446,16 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
               .map((exam) => {
                 const existingAttempt = myAttempts.find((a) => a.examId === exam.id);
                 const hasTaken = Boolean(existingAttempt);
+                const studentLock = cbtSessionLocks.find(
+                  (l) => l.studentId === currentUser.id && l.examId === exam.id && l.isLocked
+                );
 
                 return (
                   <div
                     key={exam.id}
-                    className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between"
+                    className={`bg-white rounded-2xl border p-5 shadow-xs flex flex-col justify-between transition-all ${
+                      studentLock ? 'border-rose-300 ring-2 ring-rose-200' : 'border-slate-200'
+                    }`}
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-2">
@@ -410,10 +489,31 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                           </div>
                         </div>
                       </div>
+
+                      {studentLock && (
+                        <div className="mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1.5">
+                          <div className="flex items-center gap-1.5 font-bold text-rose-700">
+                            <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                            <span>Akses CBT Terblokir Sistem!</span>
+                          </div>
+                          <p className="text-[11px] text-rose-800/90 leading-relaxed">
+                            {studentLock.lockReason || 'Terdeteksi mencoba meninggalkan layar ujian CBT.'}
+                          </p>
+                          <div className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>Jawaban asal ({Object.keys(studentLock.savedAnswers || {}).length} soal) tersimpan aman. Hubungi Guru Pengawas untuk membuka blokir!</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
-                      {hasTaken ? (
+                      {studentLock ? (
+                        <span className="text-xs font-bold text-rose-600 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                          Terblokir (Pelanggaran Layar)
+                        </span>
+                      ) : hasTaken ? (
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                           <span className="text-xs font-semibold text-slate-700">
@@ -431,13 +531,24 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                         id={`btn-exam-${exam.id}`}
                         onClick={() => onStartExam(exam)}
                         className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors ${
-                          hasTaken
+                          studentLock
+                            ? 'bg-rose-600 text-white hover:bg-rose-700 shadow-sm shadow-rose-500/20'
+                            : hasTaken
                             ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                             : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-500/20'
                         }`}
                       >
-                        <Play className="w-3.5 h-3.5 fill-current" />
-                        <span>{hasTaken ? 'Ulangi CBT (Latihan)' : 'Mulai Ujian CBT'}</span>
+                        {studentLock ? (
+                          <>
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>Lihat Layar Terkunci</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            <span>{hasTaken ? 'Ulangi CBT (Latihan)' : 'Mulai Ujian CBT'}</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -701,9 +812,24 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                     className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="w-6 h-6 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center">
                           {idx + 1}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                            q.questionType === 'mcma'
+                              ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                              : q.questionType === 'pg_kompleks'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                              : 'bg-blue-100 text-blue-800 border border-blue-200'
+                          }`}
+                        >
+                          {q.questionType === 'mcma'
+                            ? 'PG Kompleks / MCMA'
+                            : q.questionType === 'pg_kompleks'
+                            ? 'PG Kompleks (Benar/Salah)'
+                            : 'Pilihan Ganda Tunggal'}
                         </span>
                         <span className="text-xs font-bold text-slate-800">
                           Bobot: {q.points} Poin
@@ -736,27 +862,102 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                       </div>
                     )}
 
-                    {/* Options list */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
-                      {q.options.map((opt) => (
-                        <div
-                          key={opt.id}
-                          className={`p-2 rounded-lg border flex items-center gap-2 ${
-                            opt.id === q.correctOptionId
-                              ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold'
-                              : 'bg-slate-50 border-slate-200 text-slate-700'
-                          }`}
-                        >
-                          <span className="w-5 h-5 rounded-full bg-white border border-current flex items-center justify-center text-[10px]">
-                            {opt.id}
-                          </span>
-                          <span>{opt.text}</span>
-                          {opt.id === q.correctOptionId && (
-                            <Check className="w-3.5 h-3.5 text-emerald-600 ml-auto" />
-                          )}
+                    {/* Options list for PG Tunggal */}
+                    {(!q.questionType || q.questionType === 'pg_tunggal') && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
+                        {q.options?.map((opt) => (
+                          <div
+                            key={opt.id}
+                            className={`p-2 rounded-lg border flex items-center gap-2 ${
+                              opt.id === q.correctOptionId
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold'
+                                : 'bg-slate-50 border-slate-200 text-slate-700'
+                            }`}
+                          >
+                            <span className="w-5 h-5 rounded-full bg-white border border-current flex items-center justify-center text-[10px]">
+                              {opt.id}
+                            </span>
+                            <span>{opt.text}</span>
+                            {opt.id === q.correctOptionId && (
+                              <span className="ml-auto text-[10px] font-bold text-emerald-700 flex items-center gap-1">
+                                <Check className="w-3.5 h-3.5 text-emerald-600" /> Kunci Benar
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Options list for MCMA (Multiple Choice Multiple Answer) */}
+                    {q.questionType === 'mcma' && (
+                      <div className="space-y-1.5 pt-1 text-xs">
+                        <div className="text-[11px] font-semibold text-purple-900">
+                          Pilihan Jawaban (Kunci Jawaban Jamak: {(q.correctOptionIds || []).join(', ')}):
                         </div>
-                      ))}
-                    </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {q.options?.map((opt) => {
+                            const isCorrectKey = q.correctOptionIds?.includes(opt.id);
+                            return (
+                              <div
+                                key={opt.id}
+                                className={`p-2 rounded-lg border flex items-center gap-2 ${
+                                  isCorrectKey
+                                    ? 'bg-purple-50 border-purple-300 text-purple-950 font-bold'
+                                    : 'bg-slate-50 border-slate-200 text-slate-700'
+                                }`}
+                              >
+                                <span className="w-5 h-5 rounded-md bg-white border border-current flex items-center justify-center text-[10px]">
+                                  {opt.id}
+                                </span>
+                                <span>{opt.text}</span>
+                                {isCorrectKey && (
+                                  <span className="ml-auto text-[10px] font-bold text-purple-700 flex items-center gap-1">
+                                    <Check className="w-3.5 h-3.5 text-purple-600" /> Kunci Benar
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Table of Statements for PG Kompleks (Benar / Salah) */}
+                    {q.questionType === 'pg_kompleks' && (
+                      <div className="pt-1 text-xs space-y-2">
+                        <div className="text-[11px] font-semibold text-amber-900">
+                          Tabel Pernyataan & Kunci Evaluasi:
+                        </div>
+                        <div className="overflow-x-auto rounded-xl border border-slate-200">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px]">
+                              <tr>
+                                <th className="p-2.5 font-bold">Pernyataan Soal</th>
+                                <th className="p-2.5 text-right font-bold w-36">Kunci Jawaban</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {q.statements?.map((stmt, sIdx) => (
+                                <tr key={stmt.id || sIdx} className="hover:bg-slate-50/60">
+                                  <td className="p-2.5 text-slate-800">{stmt.statementText}</td>
+                                  <td className="p-2.5 text-right">
+                                    <span
+                                      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                                        stmt.correctValue === 'benar'
+                                          ? 'bg-emerald-100 text-emerald-800'
+                                          : 'bg-rose-100 text-rose-800'
+                                      }`}
+                                    >
+                                      {stmt.correctValue === 'benar' ? '✓ BENAR' : '✗ SALAH'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Explanation */}
                     {q.explanation && (
@@ -870,6 +1071,309 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
         </div>
       )}
 
+      {/* 4. Monitor & Reset Layar CBT Siswa (Admin Only) */}
+      {currentUser.role === 'admin' && activeTab === 'cbt_locks' && (
+        <div className="space-y-5">
+          {/* Header Banner */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-rose-600 font-bold text-xs uppercase tracking-wider mb-1">
+                <ShieldAlert className="w-4 h-4" />
+                <span>Pengawasan Anti-Curang & Buka Kunci Layar CBT</span>
+              </div>
+              <h2 className="text-lg font-black text-slate-900">
+                Pusat Reset Akses & Monitor Layar Ujian Siswa
+              </h2>
+              <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
+                Siswa terkunci otomatis di layar CBT. Jika siswa mencoba keluar dari layar (berganti tab browser, membuka aplikasi lain, atau keluar dari fullscreen), sistem otomatis <strong>memblokir siswa</strong>. 
+                <span className="text-emerald-700 font-semibold ml-1">
+                  Seluruh jawaban asal siswa tetap tersimpan aman di database.
+                </span> Klik <strong>"Buka Blokir"</strong> untuk mengizinkan siswa melanjutkan ujian.
+              </p>
+            </div>
+
+            {lockedSessionsCount > 0 && onUnlockExamSession && (
+              <button
+                onClick={() => {
+                  if (
+                    confirm(
+                      `Buka blokir untuk SEMUA ${lockedSessionsCount} siswa yang saat ini terkunci? Jawaban masing-masing siswa tetap tersimpan aman.`
+                    )
+                  ) {
+                    cbtSessionLocks
+                      .filter((l) => l.isLocked)
+                      .forEach((l) => onUnlockExamSession(l.id));
+                  }
+                }}
+                className="shrink-0 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-sm shadow-emerald-600/20 transition-all"
+              >
+                <Unlock className="w-4 h-4" />
+                <span>Buka Blokir Semua ({lockedSessionsCount} Siswa)</span>
+              </button>
+            )}
+          </div>
+
+          {/* Stats Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div
+              className={`p-4 rounded-2xl border shadow-xs ${
+                lockedSessionsCount > 0
+                  ? 'bg-rose-50 border-rose-200 text-rose-950 ring-2 ring-rose-300'
+                  : 'bg-white border-slate-200 text-slate-900'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">Siswa Terblokir Saat Ini</span>
+                <ShieldAlert className={`w-4 h-4 ${lockedSessionsCount > 0 ? 'text-rose-600 animate-bounce' : 'text-slate-400'}`} />
+              </div>
+              <div className="text-3xl font-black mt-2 text-rose-600">
+                {lockedSessionsCount}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">
+                {lockedSessionsCount > 0
+                  ? 'Memerlukan reset/buka kunci dari guru pengawas'
+                  : 'Semua siswa tertib di layar ujian'}
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">Total Riwayat Sesi CBT</span>
+                <Layers className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="text-3xl font-black mt-2 text-blue-600">
+                {cbtSessionLocks.length}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">
+                Sesi ujian terpantau oleh sistem anti-curang
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">Status Keamanan Sistem</span>
+                <Lock className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="text-sm font-black mt-2 text-emerald-700 flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                Fullscreen & Anti-Tab Aktif
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">
+                Auto-save jawaban aktif berkala
+              </div>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="relative w-full sm:w-80">
+              <input
+                type="text"
+                placeholder="Cari siswa, NISN, atau paket ujian..."
+                value={searchLockQuery}
+                onChange={(e) => setSearchLockQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <span className="text-xs font-medium text-slate-500 whitespace-nowrap">Status:</span>
+              <div className="flex rounded-xl bg-slate-100 p-0.5 border border-slate-200 text-xs">
+                <button
+                  onClick={() => setFilterLockStatus('all')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    filterLockStatus === 'all'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Semua ({cbtSessionLocks.length})
+                </button>
+                <button
+                  onClick={() => setFilterLockStatus('locked')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    filterLockStatus === 'locked'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-rose-700 hover:text-rose-900'
+                  }`}
+                >
+                  Terblokir ({lockedSessionsCount})
+                </button>
+                <button
+                  onClick={() => setFilterLockStatus('unlocked')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    filterLockStatus === 'unlocked'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Dibuka ({cbtSessionLocks.filter((l) => !l.isLocked).length})
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Table of Session Locks */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-semibold text-[10px]">
+                  <tr>
+                    <th className="py-3 px-4">Nama Siswa & NISN</th>
+                    <th className="py-3 px-3">Kelas / Sesi</th>
+                    <th className="py-3 px-4">Paket Ujian CBT</th>
+                    <th className="py-3 px-3">Status Layar</th>
+                    <th className="py-3 px-3">Pelanggaran</th>
+                    <th className="py-3 px-3">Jawaban Asal</th>
+                    <th className="py-3 px-3">Sisa Waktu</th>
+                    <th className="py-3 px-3 text-right">Aksi Reset</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {cbtSessionLocks
+                    .filter((l) => {
+                      if (filterLockStatus === 'locked') return l.isLocked;
+                      if (filterLockStatus === 'unlocked') return !l.isLocked;
+                      return true;
+                    })
+                    .filter((l) => {
+                      const q = searchLockQuery.toLowerCase();
+                      return (
+                        l.studentName.toLowerCase().includes(q) ||
+                        (l.studentNisn || '').toLowerCase().includes(q) ||
+                        l.examTitle.toLowerCase().includes(q) ||
+                        (l.studentClass || '').toLowerCase().includes(q)
+                      );
+                    })
+                    .map((l) => {
+                      const savedCount = Object.keys(l.savedAnswers || {}).length;
+                      const minutesLeft = Math.floor(l.savedSecondsRemaining / 60);
+                      const secondsLeft = l.savedSecondsRemaining % 60;
+
+                      return (
+                        <tr
+                          key={l.id}
+                          className={`transition-colors ${
+                            l.isLocked ? 'bg-rose-50/40 hover:bg-rose-50/70' : 'hover:bg-slate-50/80'
+                          }`}
+                        >
+                          <td className="py-3.5 px-4">
+                            <div className="font-bold text-slate-900">{l.studentName}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              NISN: {l.studentNisn || '-'}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-3">
+                            <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                              {l.studentClass || 'Umum'}
+                            </span>
+                            {l.studentSession && (
+                              <span className="block text-[10px] text-slate-500 mt-0.5">
+                                {l.studentSession}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 font-semibold text-slate-800">
+                            {l.examTitle}
+                          </td>
+                          <td className="py-3.5 px-3">
+                            {l.isLocked ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-rose-600 text-white shadow-xs animate-pulse">
+                                <Lock className="w-3 h-3" />
+                                <span>TERBLOKIR</span>
+                              </span>
+                            ) : l.isCompleted ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Selesai</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                                <Unlock className="w-3 h-3 text-blue-600" />
+                                <span>Dibuka ({l.unlockedBy || 'Admin'})</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-3">
+                            <div className="text-[11px] font-bold text-rose-700">
+                              {l.violationCount}x Percobaan
+                            </div>
+                            <div className="text-[10px] text-slate-500 max-w-[200px] truncate" title={l.lockReason}>
+                              {l.lockReason || 'Keluar layar CBT'}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-3">
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>{savedCount} Soal Tersimpan</span>
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3">
+                            <div className="text-xs font-mono font-bold text-slate-800">
+                              {minutesLeft}:{secondsLeft < 10 ? `0${secondsLeft}` : secondsLeft}
+                            </div>
+                            <div className="text-[10px] text-slate-400">Sisa Pengerjaan</div>
+                          </td>
+                          <td className="py-3.5 px-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {l.isLocked && onUnlockExamSession && (
+                                <button
+                                  onClick={() => {
+                                    if (
+                                      confirm(
+                                        `Buka blokir ujian untuk "${l.studentName}"?\n\nJawaban yang telah diisi (${savedCount} soal) tetap tersimpan utuh dan siswa dapat langsung melanjutkan ujian.`
+                                      )
+                                    ) {
+                                      onUnlockExamSession(l.id);
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
+                                  title="Izinkan siswa kembali masuk dan melanjutkan pengerjaan CBT"
+                                >
+                                  <Unlock className="w-3.5 h-3.5" />
+                                  <span>Buka Blokir</span>
+                                </button>
+                              )}
+
+                              {onResetExamSession && (
+                                <button
+                                  onClick={() => {
+                                    if (
+                                      confirm(
+                                        `Reset total sesi CBT untuk "${l.studentName}"?\n\nPeringatan: Ini akan menghapus sesi terkunci ini. Gunakan hanya jika ingin siswa memulai ulang dari awal.`
+                                      )
+                                    ) {
+                                      onResetExamSession(l.id);
+                                    }
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                  title="Reset/Hapus Sesi Ini"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                  {cbtSessionLocks.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-slate-400 text-xs">
+                        <ShieldAlert className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                        Belum ada sesi CBT yang terkunci atau terdaftar. Seluruh siswa ujian berjalan tertib.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Review Modal: Question-by-Question review with student answer vs correct answer and step-by-step explanation */}
       {selectedAttemptForReview && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -934,23 +1438,83 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
 
                 return targetExam.questions.map((q, idx) => {
                   const studentAns = selectedAttemptForReview.answers[q.id];
-                  const isCorrect = studentAns === q.correctOptionId;
+                  let isCorrect = false;
+                  let pointsEarned = 0;
+
+                  if (q.questionType === 'mcma') {
+                    const studentPicks = Array.isArray(studentAns)
+                      ? studentAns
+                      : studentAns
+                      ? [studentAns]
+                      : [];
+                    const correctKeys = q.correctOptionIds || [];
+                    const correctPicks = studentPicks.filter((p) => correctKeys.includes(p)).length;
+                    const wrongPicks = studentPicks.filter((p) => !correctKeys.includes(p)).length;
+                    const ratio = Math.max(0, (correctPicks - wrongPicks) / Math.max(1, correctKeys.length));
+                    pointsEarned = Math.round(ratio * (q.points || 20));
+                    isCorrect = ratio >= 0.99;
+                  } else if (q.questionType === 'pg_kompleks') {
+                    const studentStmts =
+                      typeof studentAns === 'object' && studentAns !== null && !Array.isArray(studentAns)
+                        ? (studentAns as Record<string, 'benar' | 'salah'>)
+                        : {};
+                    const statements = q.statements || [];
+                    const matchCount = statements.filter(
+                      (s) => studentStmts[s.id] === s.correctValue
+                    ).length;
+                    const ratio = matchCount / Math.max(1, statements.length);
+                    pointsEarned = Math.round(ratio * (q.points || 20));
+                    isCorrect = ratio >= 0.99;
+                  } else {
+                    // PG Tunggal
+                    isCorrect = studentAns === q.correctOptionId;
+                    pointsEarned = isCorrect ? (q.points || 20) : 0;
+                  }
 
                   return (
                     <div
                       key={q.id}
                       className={`p-4 rounded-xl border text-xs space-y-2.5 ${
-                        isCorrect ? 'bg-emerald-50/40 border-emerald-200' : 'bg-rose-50/40 border-rose-200'
+                        isCorrect
+                          ? 'bg-emerald-50/40 border-emerald-200'
+                          : pointsEarned > 0
+                          ? 'bg-amber-50/40 border-amber-200'
+                          : 'bg-rose-50/40 border-rose-200'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-800">Soal Nomor {idx + 1}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-800">Soal Nomor {idx + 1}</span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              q.questionType === 'mcma'
+                                ? 'bg-purple-100 text-purple-800'
+                                : q.questionType === 'pg_kompleks'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}
+                          >
+                            {q.questionType === 'mcma'
+                              ? 'MCMA'
+                              : q.questionType === 'pg_kompleks'
+                              ? 'PG Kompleks'
+                              : 'PG Tunggal'}
+                          </span>
+                        </div>
                         <span
-                          className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${
-                            isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] ${
+                            isCorrect
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : pointsEarned > 0
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-rose-100 text-rose-800'
                           }`}
                         >
-                          {isCorrect ? 'Benar (+20 Poin)' : 'Salah (0 Poin)'}
+                          {isCorrect
+                            ? `Benar Penuh (+${pointsEarned} Poin)`
+                            : pointsEarned > 0
+                            ? `Sebagian (+${pointsEarned}/${q.points || 20} Poin)`
+                            : `Salah (0 Poin)`}
                         </span>
                       </div>
 
@@ -962,36 +1526,150 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                         </div>
                       )}
 
-                      {/* Options breakdown */}
-                      <div className="space-y-1">
-                        {q.options.map((opt) => {
-                          const wasChosen = studentAns === opt.id;
-                          const isRight = q.correctOptionId === opt.id;
+                      {/* Options breakdown for PG Tunggal */}
+                      {(!q.questionType || q.questionType === 'pg_tunggal') && (
+                        <div className="space-y-1">
+                          {q.options?.map((opt) => {
+                            const wasChosen = studentAns === opt.id;
+                            const isRight = q.correctOptionId === opt.id;
 
-                          return (
-                            <div
-                              key={opt.id}
-                              className={`p-2 rounded-lg flex items-center justify-between ${
-                                isRight
-                                  ? 'bg-emerald-100/70 border border-emerald-300 font-bold text-emerald-950'
-                                  : wasChosen
-                                  ? 'bg-rose-100/70 border border-rose-300 font-medium text-rose-950'
-                                  : 'bg-white border border-slate-200 text-slate-600'
-                              }`}
-                            >
-                              <span>
-                                <strong>{opt.id}.</strong> {opt.text}
-                              </span>
-                              {isRight && (
-                                <span className="text-[10px] font-bold text-emerald-700">Kunci Benar ✓</span>
-                              )}
-                              {!isRight && wasChosen && (
-                                <span className="text-[10px] font-bold text-rose-600">Jawaban Siswa ✗</span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                            return (
+                              <div
+                                key={opt.id}
+                                className={`p-2 rounded-lg flex items-center justify-between ${
+                                  isRight
+                                    ? 'bg-emerald-100/70 border border-emerald-300 font-bold text-emerald-950'
+                                    : wasChosen
+                                    ? 'bg-rose-100/70 border border-rose-300 font-medium text-rose-950'
+                                    : 'bg-white border border-slate-200 text-slate-600'
+                                }`}
+                              >
+                                <span>
+                                  <strong>{opt.id}.</strong> {opt.text}
+                                </span>
+                                {isRight && (
+                                  <span className="text-[10px] font-bold text-emerald-700">Kunci Benar ✓</span>
+                                )}
+                                {!isRight && wasChosen && (
+                                  <span className="text-[10px] font-bold text-rose-600">Jawaban Siswa ✗</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Options breakdown for MCMA */}
+                      {q.questionType === 'mcma' && (
+                        <div className="space-y-1">
+                          {q.options?.map((opt) => {
+                            const studentPicks = Array.isArray(studentAns) ? studentAns : [];
+                            const wasChosen = studentPicks.includes(opt.id);
+                            const isKey = q.correctOptionIds?.includes(opt.id);
+
+                            return (
+                              <div
+                                key={opt.id}
+                                className={`p-2 rounded-lg flex items-center justify-between ${
+                                  isKey && wasChosen
+                                    ? 'bg-emerald-100/70 border border-emerald-300 font-bold text-emerald-950'
+                                    : isKey && !wasChosen
+                                    ? 'bg-purple-100/70 border border-purple-300 font-medium text-purple-950'
+                                    : !isKey && wasChosen
+                                    ? 'bg-rose-100/70 border border-rose-300 font-medium text-rose-950'
+                                    : 'bg-white border border-slate-200 text-slate-600'
+                                }`}
+                              >
+                                <span>
+                                  <strong>{opt.id}.</strong> {opt.text}
+                                </span>
+                                {isKey && wasChosen && (
+                                  <span className="text-[10px] font-bold text-emerald-700">
+                                    Kunci Benar & Dipilih Siswa ✓
+                                  </span>
+                                )}
+                                {isKey && !wasChosen && (
+                                  <span className="text-[10px] font-bold text-purple-700">
+                                    Kunci Benar (Tidak Dipilih)
+                                  </span>
+                                )}
+                                {!isKey && wasChosen && (
+                                  <span className="text-[10px] font-bold text-rose-600">
+                                    Pilihan Keliru ✗
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Statements breakdown for PG Kompleks */}
+                      {q.questionType === 'pg_kompleks' && (
+                        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-[10px]">
+                              <tr>
+                                <th className="p-2">Pernyataan</th>
+                                <th className="p-2 text-center w-28">Kunci Jawaban</th>
+                                <th className="p-2 text-center w-28">Jawaban Siswa</th>
+                                <th className="p-2 text-right w-20">Hasil</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-[11px]">
+                              {q.statements?.map((stmt) => {
+                                const studentStmts =
+                                  typeof studentAns === 'object' && studentAns !== null && !Array.isArray(studentAns)
+                                    ? (studentAns as Record<string, 'benar' | 'salah'>)
+                                    : {};
+                                const userVal = studentStmts[stmt.id];
+                                const isMatch = userVal === stmt.correctValue;
+
+                                return (
+                                  <tr key={stmt.id} className="hover:bg-slate-50/50">
+                                    <td className="p-2 text-slate-800">{stmt.statementText}</td>
+                                    <td className="p-2 text-center font-bold">
+                                      <span
+                                        className={`px-2 py-0.5 rounded text-[10px] ${
+                                          stmt.correctValue === 'benar'
+                                            ? 'bg-emerald-100 text-emerald-800'
+                                            : 'bg-rose-100 text-rose-800'
+                                        }`}
+                                      >
+                                        {stmt.correctValue === 'benar' ? 'BENAR' : 'SALAH'}
+                                      </span>
+                                    </td>
+                                    <td className="p-2 text-center font-bold">
+                                      {userVal ? (
+                                        <span
+                                          className={`px-2 py-0.5 rounded text-[10px] ${
+                                            userVal === 'benar'
+                                              ? 'bg-slate-100 text-slate-800'
+                                              : 'bg-slate-100 text-slate-800'
+                                          }`}
+                                        >
+                                          {userVal === 'benar' ? 'BENAR' : 'SALAH'}
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-400 text-[10px]">Belum Dijawab</span>
+                                      )}
+                                    </td>
+                                    <td className="p-2 text-right font-bold">
+                                      <span
+                                        className={`text-[10px] ${
+                                          isMatch ? 'text-emerald-700' : 'text-rose-600'
+                                        }`}
+                                      >
+                                        {isMatch ? 'Tepat ✓' : 'Keliru ✗'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
 
                       {q.explanation && (
                         <div className="p-2.5 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 leading-relaxed font-sans">
@@ -1157,7 +1835,56 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSaveQuestion} className="space-y-3.5 mt-4 text-xs">
+            <form onSubmit={handleSaveQuestion} className="space-y-4 mt-4 text-xs">
+              {/* Bentuk Soal Selector */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1.5">Bentuk Soal CBT</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormQuestionType('pg_tunggal')}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      formQuestionType === 'pg_tunggal'
+                        ? 'border-blue-500 bg-blue-50/80 text-blue-900 font-bold shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="text-xs">PG Tunggal</div>
+                    <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                      Pilihan A, B, C, D (1 Jawaban Benar)
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormQuestionType('mcma')}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      formQuestionType === 'mcma'
+                        ? 'border-purple-500 bg-purple-50/80 text-purple-900 font-bold shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="text-xs">PG Kompleks (MCMA)</div>
+                    <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                      Pilihan A, B, C, D (Jawaban Benar &gt; 1)
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormQuestionType('pg_kompleks')}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      formQuestionType === 'pg_kompleks'
+                        ? 'border-amber-500 bg-amber-50/80 text-amber-900 font-bold shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="text-xs">PG Kompleks Pernyataan</div>
+                    <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                      Tabel Evaluasi (Benar / Salah)
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Pertanyaan Soal</label>
                 <textarea
@@ -1183,47 +1910,211 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                 />
               </div>
 
-              {/* Options */}
-              <div className="space-y-2">
-                <label className="block font-bold text-slate-800">Pilihan Jawaban (A s/d E):</label>
-                {[
-                  { id: 'A', val: formOptA, setVal: setFormOptA },
-                  { id: 'B', val: formOptB, setVal: setFormOptB },
-                  { id: 'C', val: formOptC, setVal: setFormOptC },
-                  { id: 'D', val: formOptD, setVal: setFormOptD },
-                  { id: 'E', val: formOptE, setVal: setFormOptE },
-                ].map((opt) => (
-                  <div key={opt.id} className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-md bg-slate-100 font-bold flex items-center justify-center text-slate-700 shrink-0">
-                      {opt.id}
-                    </span>
-                    <input
-                      type="text"
-                      required
-                      placeholder={`Pilihan ${opt.id}...`}
-                      value={opt.val}
-                      onChange={(e) => opt.setVal(e.target.value)}
-                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
+              {/* Form Options for PG Tunggal and MCMA (Strictly A, B, C, D) */}
+              {(formQuestionType === 'pg_tunggal' || formQuestionType === 'mcma') && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-800">Pilihan Jawaban (A, B, C, D):</label>
+                    <span className="text-[10px] text-slate-400 font-medium">Hanya 4 Pilihan (A - D)</span>
                   </div>
-                ))}
-              </div>
+                  {[
+                    { id: 'A', val: formOptA, setVal: setFormOptA },
+                    { id: 'B', val: formOptB, setVal: setFormOptB },
+                    { id: 'C', val: formOptC, setVal: setFormOptC },
+                    { id: 'D', val: formOptD, setVal: setFormOptD },
+                  ].map((opt) => (
+                    <div key={opt.id} className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-md bg-slate-100 font-bold flex items-center justify-center text-slate-700 shrink-0">
+                        {opt.id}
+                      </span>
+                      <input
+                        type="text"
+                        required
+                        placeholder={`Pilihan ${opt.id}...`}
+                        value={opt.val}
+                        onChange={(e) => opt.setVal(e.target.value)}
+                        className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Kunci Jawaban Benar</label>
+              {/* Kunci Jawaban untuk PG Tunggal */}
+              {formQuestionType === 'pg_tunggal' && (
+                <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200/70 space-y-1.5">
+                  <label className="block font-bold text-blue-950">Kunci Jawaban Benar (1 Pilihan):</label>
                   <select
                     value={formCorrectOpt}
                     onChange={(e) => setFormCorrectOpt(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-bold text-emerald-700"
+                    className="w-full px-3 py-2 rounded-lg border border-blue-300 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-bold text-blue-900"
                   >
                     <option value="A">Pilihan A</option>
                     <option value="B">Pilihan B</option>
                     <option value="C">Pilihan C</option>
                     <option value="D">Pilihan D</option>
-                    <option value="E">Pilihan E</option>
                   </select>
                 </div>
+              )}
+
+              {/* Kunci Jawaban untuk MCMA (Multiple Choice Multiple Answer) */}
+              {formQuestionType === 'mcma' && (
+                <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-200/70 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-purple-950">
+                      Kunci Jawaban Benar MCMA (Centang Semua yang Benar):
+                    </label>
+                    <span className="text-[10px] text-purple-700 font-medium">
+                      Terpilih: {formCorrectOptIds.join(', ') || 'Belum ada'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {['A', 'B', 'C', 'D'].map((optKey) => {
+                      const isChecked = formCorrectOptIds.includes(optKey);
+                      return (
+                        <button
+                          key={optKey}
+                          type="button"
+                          onClick={() => {
+                            if (isChecked) {
+                              if (formCorrectOptIds.length > 1) {
+                                setFormCorrectOptIds(formCorrectOptIds.filter((k) => k !== optKey));
+                              }
+                            } else {
+                              setFormCorrectOptIds([...formCorrectOptIds, optKey].sort());
+                            }
+                          }}
+                          className={`py-2 px-3 rounded-lg border flex items-center justify-center gap-2 font-bold text-xs transition-all ${
+                            isChecked
+                              ? 'bg-purple-600 border-purple-600 text-white shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <CheckSquare className="w-3.5 h-3.5" />
+                          <span>Pilihan {optKey}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-purple-800 leading-tight">
+                    * <strong>Penskoran Proporsional MCMA:</strong> Skor siswa dihitung otomatis berdasarkan proporsi jawaban benar yang dipilih.
+                  </p>
+                </div>
+              )}
+
+              {/* Form Pernyataan untuk PG Kompleks (Benar / Salah) */}
+              {formQuestionType === 'pg_kompleks' && (
+                <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200/70 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block font-bold text-amber-950">
+                        Daftar Pernyataan & Kunci Evaluasi (Benar / Salah):
+                      </label>
+                      <p className="text-[10px] text-amber-800">
+                        Tambahkan pernyataan matematika untuk dinilai Benar atau Salah oleh siswa.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormStatements([
+                          ...formStatements,
+                          {
+                            id: `stmt_${Date.now()}_${formStatements.length + 1}`,
+                            statementText: '',
+                            correctValue: 'benar',
+                          },
+                        ])
+                      }
+                      className="px-2.5 py-1 rounded-lg bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 flex items-center gap-1 shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Pernyataan</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {formStatements.map((stmt, idx) => (
+                      <div
+                        key={stmt.id}
+                        className="p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
+                      >
+                        <span className="w-5 h-5 rounded-full bg-slate-100 font-bold flex items-center justify-center text-slate-600 text-[10px] shrink-0">
+                          {idx + 1}
+                        </span>
+                        <input
+                          type="text"
+                          required
+                          placeholder={`Tulis pernyataan ${idx + 1}...`}
+                          value={stmt.statementText}
+                          onChange={(e) =>
+                            setFormStatements(
+                              formStatements.map((s) =>
+                                s.id === stmt.id ? { ...s, statementText: e.target.value } : s
+                              )
+                            )
+                          }
+                          className="flex-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                        />
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFormStatements(
+                                formStatements.map((s) =>
+                                  s.id === stmt.id ? { ...s, correctValue: 'benar' } : s
+                                )
+                              )
+                            }
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition-colors ${
+                              stmt.correctValue === 'benar'
+                                ? 'bg-emerald-600 border-emerald-600 text-white'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            ✓ Benar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFormStatements(
+                                formStatements.map((s) =>
+                                  s.id === stmt.id ? { ...s, correctValue: 'salah' } : s
+                                )
+                              )
+                            }
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition-colors ${
+                              stmt.correctValue === 'salah'
+                                ? 'bg-rose-600 border-rose-600 text-white'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            ✗ Salah
+                          </button>
+                          {formStatements.length > 2 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormStatements(formStatements.filter((s) => s.id !== stmt.id))
+                              }
+                              className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                              title="Hapus Pernyataan"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="text-[10px] text-amber-800 leading-tight">
+                    * <strong>Penskoran Proporsional PG Kompleks:</strong> Setiap butir pernyataan bernilai bobot proporsional terhadap total bobot soal.
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Bobot Poin Soal</label>
                   <input
@@ -1234,6 +2125,9 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                     onChange={(e) => setFormPoints(Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
+                </div>
+                <div className="flex items-center text-[11px] text-slate-500 pt-5">
+                  Bobot standar 20 poin (dikonversi ke skala 100 secara otomatis).
                 </div>
               </div>
 

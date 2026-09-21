@@ -14,24 +14,30 @@ import {
 } from 'lucide-react';
 import { UserRole } from '../types';
 
-export type TabType = 'news' | 'materials' | 'cbt' | 'students' | 'github_db';
+export type TabType = 'news' | 'materials' | 'cbt' | 'students' | 'admins' | 'github_db';
 
 interface SidebarProps {
   activeTab: TabType;
   onSelectTab: (tab: TabType) => void;
   userRole: UserRole;
+  isSuperAdmin?: boolean;
   pendingTasksCount?: number;
   totalMaterialsCount?: number;
   totalStudentsCount?: number;
+  totalAdminsCount?: number;
+  lockedSessionsCount?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onSelectTab,
   userRole,
+  isSuperAdmin,
   pendingTasksCount = 0,
   totalMaterialsCount = 0,
   totalStudentsCount = 0,
+  totalAdminsCount = 1,
+  lockedSessionsCount = 0,
 }) => {
   return (
     <aside className="w-full md:w-64 shrink-0 bg-white border-r border-slate-200 min-h-[calc(100vh-4rem)] p-4 flex flex-col justify-between">
@@ -127,6 +133,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {pendingTasksCount > 0 && userRole === 'student' && (
                 <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
               )}
+              {lockedSessionsCount > 0 && userRole === 'admin' && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-rose-500 text-white animate-pulse">
+                  {lockedSessionsCount} Kunci
+                </span>
+              )}
             </button>
 
             {/* 4. Manajemen Siswa (Admin Only) */}
@@ -154,7 +165,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             )}
 
-            {/* 5. Database & GitHub Sync */}
+            {/* 5. Kelola Akun Guru & Admin (Admin Only) */}
+            {userRole === 'admin' && (
+              <button
+                id="sidebar-tab-admins"
+                onClick={() => onSelectTab('admins')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  activeTab === 'admins'
+                    ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/20 font-semibold'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Shield className="w-4 h-4" />
+                  <span>Kelola Akun Guru</span>
+                </div>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                    activeTab === 'admins'
+                      ? 'bg-white/20 text-white'
+                      : isSuperAdmin
+                      ? 'bg-purple-100 text-purple-800'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {isSuperAdmin ? 'Super' : `${totalAdminsCount} Guru`}
+                </span>
+              </button>
+            )}
+
+            {/* 6. Database & GitHub Sync */}
             <button
               id="sidebar-tab-github"
               onClick={() => onSelectTab('github_db')}
