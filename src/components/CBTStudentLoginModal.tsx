@@ -27,7 +27,7 @@ export const CBTStudentLoginModal: React.FC<CBTStudentLoginModalProps> = ({
   onClose,
   onLoginSuccess,
 }) => {
-  const [usernameOrNisn, setUsernameOrNisn] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -37,24 +37,23 @@ export const CBTStudentLoginModal: React.FC<CBTStudentLoginModalProps> = ({
     e.preventDefault();
     setErrorMessage('');
 
-    const trimmedInput = usernameOrNisn.trim().toLowerCase();
+    const trimmedInput = username.trim().toLowerCase();
     const trimmedPass = password.trim();
 
     if (!trimmedInput || !trimmedPass) {
-      setErrorMessage('Harap isi Username/NISN dan Password akun siswa Anda.');
+      setErrorMessage('Harap isi Username dan Password akun CBT siswa Anda.');
       return;
     }
 
     const studentUsers = users.filter((u) => u.role === 'student');
     const matchedStudent = studentUsers.find((s) => {
       const matchUser = s.username.toLowerCase() === trimmedInput;
-      const matchNisn = s.nisn && s.nisn.trim().toLowerCase() === trimmedInput;
-      return (matchUser || matchNisn) && s.password === trimmedPass;
+      return matchUser && s.password === trimmedPass;
     });
 
     if (!matchedStudent) {
       setErrorMessage(
-        'Akun siswa tidak ditemukan atau password salah. Pastikan menggunakan akun yang didaftarkan oleh Guru.'
+        'Akun siswa tidak ditemukan atau password salah. Pastikan menggunakan Username & Password yang dibuatkan oleh Guru.'
       );
       return;
     }
@@ -65,7 +64,7 @@ export const CBTStudentLoginModal: React.FC<CBTStudentLoginModalProps> = ({
     }
 
     onLoginSuccess(matchedStudent, exam);
-    setUsernameOrNisn('');
+    setUsername('');
     setPassword('');
     onClose();
   };
@@ -111,7 +110,7 @@ export const CBTStudentLoginModal: React.FC<CBTStudentLoginModalProps> = ({
         <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
           <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <div className="text-[11px] leading-relaxed">
-            Akun siswa dibuatkan secara resmi oleh <strong>Guru Pengampu</strong>. Masukkan Username atau NISN beserta Password Anda.
+            Akun siswa dibuatkan secara resmi oleh <strong>Guru Pengampu</strong>. Masukkan Username dan Password akun CBT Anda.
           </div>
         </div>
 
@@ -127,7 +126,7 @@ export const CBTStudentLoginModal: React.FC<CBTStudentLoginModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
           <div>
             <label className="block font-semibold text-slate-700 mb-1">
-              Username atau NISN Siswa
+              Username Login Siswa
             </label>
             <div className="relative">
               <UserIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -135,10 +134,10 @@ export const CBTStudentLoginModal: React.FC<CBTStudentLoginModalProps> = ({
                 type="text"
                 required
                 autoFocus
-                placeholder="Contoh: ahmad.fauzi atau NISN..."
-                value={usernameOrNisn}
-                onChange={(e) => setUsernameOrNisn(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                placeholder="Contoh: ahmad.fauzi"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all font-mono"
               />
             </div>
           </div>

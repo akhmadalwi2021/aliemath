@@ -43,21 +43,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Controls */}
           <div className="flex items-center gap-2.5 sm:gap-3">
-            {/* GitHub Database Sync Button */}
-            <button
-              id="btn-github-sync"
-              onClick={onOpenGitHubSync}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                isGitHubConnected
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-              }`}
-              title="Kelola Database GitHub & Ekspor Vercel"
-            >
-              <GitBranch className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">GitHub DB</span>
-              {isGitHubConnected && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
-            </button>
+            {/* GitHub Database Sync Button (Hanya Admin) */}
+            {adminUser && (
+              <button
+                id="btn-github-sync"
+                onClick={onOpenGitHubSync}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                  isGitHubConnected
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                }`}
+                title="Kelola Database GitHub & Ekspor Vercel (Khusus Admin)"
+              >
+                <GitBranch className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">GitHub DB</span>
+                {isGitHubConnected && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+              </button>
+            )}
 
             {/* Admin Login / Admin Profile in Top Right Corner */}
             {adminUser ? (

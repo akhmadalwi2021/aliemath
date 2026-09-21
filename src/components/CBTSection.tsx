@@ -464,7 +464,7 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                     </span>
                   </div>
                   <div className="text-[11px] text-blue-700/80">
-                    NISN: {effectiveStudent.nisn || '-'} • Sesi: {effectiveStudent.session || 'Sesi 1'}
+                    Username: <span className="font-mono font-medium">{effectiveStudent.username}</span> • Sesi: {effectiveStudent.session || 'Sesi 1'}
                   </div>
                 </div>
               </div>

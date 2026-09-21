@@ -392,6 +392,62 @@ export default function App() {
     }));
   };
 
+  const handleBatchImportStudents = (
+    newStudents: Omit<User, 'id' | 'role' | 'createdAt'>[],
+    mode: 'merge' | 'replace' = 'merge'
+  ) => {
+    setDatabase((prev) => {
+      const nonStudentUsers = prev.users.filter((u) => u.role !== 'student');
+      const existingStudents = prev.users.filter((u) => u.role === 'student');
+
+      const importedList: User[] = newStudents.map((std, idx) => ({
+        id: `usr_std_${Date.now()}_${idx}`,
+        fullName: std.fullName.trim(),
+        username: std.username.trim().toLowerCase().replace(/\s+/g, '.'),
+        password: std.password || '123456',
+        classGroup: std.classGroup || '7A',
+        session: std.session || std.examSession || 'Sesi 1',
+        examSession: std.session || std.examSession || 'Sesi 1',
+        examTime: std.examTime || '07:30 - 09:30 WIB',
+        role: 'student',
+        status: std.status || 'active',
+        createdAt: new Date().toISOString().split('T')[0],
+      }));
+
+      let finalStudents: User[];
+      if (mode === 'replace') {
+        finalStudents = importedList;
+      } else {
+        const updatedList = [...existingStudents];
+        for (const imported of importedList) {
+          const existingIdx = updatedList.findIndex(
+            (s) => s.username.toLowerCase() === imported.username.toLowerCase()
+          );
+          if (existingIdx >= 0) {
+            updatedList[existingIdx] = {
+              ...updatedList[existingIdx],
+              fullName: imported.fullName,
+              password: imported.password,
+              classGroup: imported.classGroup,
+              session: imported.session,
+              examSession: imported.examSession,
+              examTime: imported.examTime,
+              status: imported.status,
+            };
+          } else {
+            updatedList.push(imported);
+          }
+        }
+        finalStudents = updatedList;
+      }
+
+      return {
+        ...prev,
+        users: [...nonStudentUsers, ...finalStudents],
+      };
+    });
+  };
+
   // ---------------- Admin Actions (Super Admin Exclusive - Req 5) ----------------
   const handleAddAdmin = (newAdmin: { fullName: string; username: string; password?: string }) => {
     if (!currentUser.isSuperAdmin) {
@@ -551,6 +607,7 @@ export default function App() {
               onAddStudent={handleAddStudent}
               onEditStudent={handleEditStudent}
               onDeleteStudent={handleDeleteStudent}
+              onBatchImportStudents={handleBatchImportStudents}
             />
           )}
 
@@ -565,7 +622,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'github_db' && (
+          {activeTab === 'github_db' && currentUser.role === 'admin' && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center">
