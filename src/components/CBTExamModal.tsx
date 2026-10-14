@@ -85,6 +85,16 @@ export const CBTExamModal: React.FC<CBTExamModalProps> = ({
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [justUnlockedNotice, setJustUnlockedNotice] = useState(false);
+  const [statusCheckNotice, setStatusCheckNotice] = useState<string | null>(null);
+
+  // Gatekeeper: Require student to explicitly click to lock screen into fullscreen
+  const [hasAgreedToLock, setHasAgreedToLock] = useState<boolean>(() => {
+    return Boolean(
+      initialSessionLock &&
+        (initialSessionLock.isLocked ||
+          Object.keys(initialSessionLock.savedAnswers || {}).length > 0)
+    );
+  });
 
   const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
   const [showResultScreen, setShowResultScreen] = useState(false);
@@ -114,24 +124,57 @@ export const CBTExamModal: React.FC<CBTExamModalProps> = ({
     showResultScreenRef.current = showResultScreen;
   }, [showResultScreen]);
 
-  // Request fullscreen on enter
+  // Request fullscreen
   const enterFullscreen = () => {
     try {
       if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().then(() => {
-          setIsFullscreen(true);
-        }).catch(() => {
-          // Ignored if user gesture required
-        });
+        document.documentElement
+          .requestFullscreen()
+          .then(() => {
+            setIsFullscreen(true);
+          })
+          .catch(() => {
+            // Ignored if user gesture required
+          });
       }
     } catch {
       // Ignored
     }
   };
 
+  // Real-time automatic polling when locked to detect Admin unlock immediately
   useEffect(() => {
-    enterFullscreen();
-  }, []);
+    if (!isLocked) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const res = await fetch('/api/database');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data) {
+            const locks: CBTSessionLock[] = json.data.cbtSessionLocks || [];
+            const target = locks.find(
+              (l) => l.studentId === student.id && l.examId === exam.id
+            );
+            if (target && !target.isLocked) {
+              setIsLocked(false);
+              setJustUnlockedNotice(true);
+              setStatusCheckNotice(null);
+              if (target.savedAnswers) setAnswers(target.savedAnswers);
+              if (target.savedFlagged) setFlagged(new Set(target.savedFlagged));
+              if (typeof target.savedSecondsRemaining === 'number') {
+                setSecondsRemaining(target.savedSecondsRemaining);
+              }
+              enterFullscreen();
+              setTimeout(() => setJustUnlockedNotice(false), 5000);
+            }
+          }
+        }
+      } catch {}
+    }, 2500);
+
+    return () => clearInterval(intervalId);
+  }, [isLocked, student.id, exam.id]);
 
   // Sync prop changes if unlocked from external parent
   useEffect(() => {
@@ -177,23 +220,22 @@ export const CBTExamModal: React.FC<CBTExamModalProps> = ({
 
   // Anti-Cheat & Screen Lock Listeners
   useEffect(() => {
-    if (showResultScreen || isLocked) return;
+    if (!hasAgreedToLock || showResultScreen || isLocked) return;
 
     // 1. Visibility change (tab switch or minimize)
     const handleVisibilityChange = () => {
-      if (document.hidden && !showResultScreenRef.current && !isLockedRef.current) {
-        triggerLock('Terdeteksi berpindah tab browser atau meminimalkan layar ujian CBT.');
+      if ((document.hidden || document.visibilityState !== 'visible') && !showResultScreenRef.current && !isLockedRef.current) {
+        triggerLock('Terdeteksi meminimalkan jendela ujian atau berpindah ke tab peramban lain.');
       }
     };
 
-    // 2. Window Blur (loss of focus)
+    // 2. Window Blur (loss of focus: opening calculator, browser, or any other app)
     const handleWindowBlur = () => {
-      // Debounce slightly to prevent accidental input focus blur
       setTimeout(() => {
         if (!document.hasFocus() && !showResultScreenRef.current && !isLockedRef.current) {
-          triggerLock('Terdeteksi kehilangan fokus layar ujian (berpindah ke jendela atau aplikasi lain).');
+          triggerLock('Terdeteksi keluar dari layar CBT (membuka kalkulator, peramban lain, atau aplikasi desktop lain).');
         }
-      }, 500);
+      }, 150);
     };
 
     // 3. Fullscreen change (detect student exiting fullscreen)
@@ -201,7 +243,7 @@ export const CBTExamModal: React.FC<CBTExamModalProps> = ({
       const isFull = Boolean(document.fullscreenElement);
       setIsFullscreen(isFull);
       if (!isFull && !showResultScreenRef.current && !isLockedRef.current) {
-        triggerLock('Terdeteksi keluar dari mode layar penuh (fullscreen CBT ditutup).');
+        triggerLock('Terdeteksi keluar dari mode layar penuh (Fullscreen CBT ditutup/dikecilkan).');
       }
     };
 
@@ -213,17 +255,18 @@ export const CBTExamModal: React.FC<CBTExamModalProps> = ({
       return e.returnValue;
     };
 
-    // 5. Prevent keyboard shortcuts (F5, F11, Ctrl+R, Alt+Tab, Escape)
+    // 5. Prevent keyboard shortcuts (Escape, Alt+Tab, Windows Key, F1-F12, DevTools)
     const handleKeyDown = (e: KeyboardEvent) => {
       if (showResultScreenRef.current || isLockedRef.current) return;
 
-      const forbiddenKeys = ['f5', 'f11', 'f12'];
       const keyLower = e.key.toLowerCase();
+      const isForbiddenSpecial = ['escape', 'alt', 'meta'].includes(keyLower) || keyLower.startsWith('f');
+      const isCtrlShortcut = (e.ctrlKey || e.metaKey || e.altKey) && ['r', 'w', 't', 'n', 'p', 'c', 'v', 'a', 's', 'u', 'i', 'j', 'tab'].includes(keyLower);
 
-      if (forbiddenKeys.includes(keyLower) || ((e.ctrlKey || e.metaKey) && ['r', 'w', 't', 'n', 'p'].includes(keyLower))) {
+      if (isForbiddenSpecial || isCtrlShortcut) {
         e.preventDefault();
         e.stopPropagation();
-        triggerLock(`Terdeteksi menekan kombinasi tombol pintas terlarang (${e.key}) pada keyboard.`);
+        triggerLock(`Terdeteksi menekan kombinasi tombol terlarang (${e.key}) pada keyboard untuk mencoba keluar.`);
       }
     };
 
@@ -247,7 +290,7 @@ export const CBTExamModal: React.FC<CBTExamModalProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('contextmenu', handleContextMenu);
     };
-  }, [isLocked, showResultScreen]);
+  }, [hasAgreedToLock, isLocked, showResultScreen]);
 
   // Periodic autosave to session storage & App state so answers are NEVER lost
   useEffect(() => {
@@ -443,6 +486,71 @@ export const CBTExamModal: React.FC<CBTExamModalProps> = ({
   const unansweredCount = exam.questions.length - answeredCount;
 
   // ----------------------------------------------------
+  // SCREEN 0: GATEKEEPER / MANDATORY FULLSCREEN LOCK SCREEN
+  // ----------------------------------------------------
+  if (!hasAgreedToLock && !isLocked && !showResultScreen) {
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-4">
+        <div className="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-lg w-full p-6 sm:p-8 text-center space-y-6 shadow-2xl relative overflow-hidden">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-blue-600/20 border border-blue-500/40 text-blue-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <Lock className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-300 border border-blue-500/40 uppercase tracking-widest">
+              SISTEM ANTI-CURANG CBT TERKUNCI
+            </span>
+            <h2 className="text-2xl font-black text-white tracking-tight">
+              Aktivasi Ujian Layar Penuh
+            </h2>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Peserta: <strong className="text-white font-bold">{student.fullName}</strong> ({student.classGroup || 'Siswa'})
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-left space-y-2.5 text-xs text-slate-300">
+            <div className="flex items-start gap-2.5 text-rose-400 font-semibold">
+              <AlertOctagon className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>Dilarang keras meminimalkan layar, membuka tab baru, peramban lain, kalkulator, atau aplikasi lainnya.</span>
+            </div>
+            <div className="flex items-start gap-2.5 text-amber-400 font-semibold">
+              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>Apabila terdeteksi keluar dari layar CBT, ujian akan LANGSUNG TERKUNCI dan mendapatkan catatan pelanggaran.</span>
+            </div>
+            <div className="flex items-start gap-2.5 text-blue-400 font-semibold">
+              <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>Ujian yang terkunci HANYA DAPAT DIBUKA KEMBALI OLEH GURU ADMINISTRATOR melalui panel reset pengawas.</span>
+            </div>
+            <div className="flex items-start gap-2.5 text-emerald-400 font-semibold">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>Setiap jawaban Anda otomatis tersimpan di server secara aman dan tidak akan hilang.</span>
+            </div>
+          </div>
+
+          <div className="space-y-2.5 pt-2">
+            <button
+              onClick={() => {
+                enterFullscreen();
+                setHasAgreedToLock(true);
+              }}
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
+            >
+              <Maximize2 className="w-4 h-4" />
+              <span>Kunci Layar CBT & Mulai Ujian</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="w-full py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              Batal / Kembali ke Beranda
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------
   // SCREEN 1: LOCKED SCREEN (AKSES DIBLOKIR KARENA KELUAR LAYAR)
   // ----------------------------------------------------
   if (isLocked) {
@@ -503,6 +611,14 @@ export const CBTExamModal: React.FC<CBTExamModalProps> = ({
             </p>
           </div>
 
+          {/* Status notice if student clicked refresh but not yet unlocked */}
+          {statusCheckNotice && (
+            <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-500/50 text-xs text-rose-200 text-left flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <span>{statusCheckNotice}</span>
+            </div>
+          )}
+
           {/* Instruction to call teacher */}
           <div className="p-4 rounded-2xl bg-blue-950/40 border border-blue-500/30 text-left text-xs space-y-1.5">
             <div className="flex items-center gap-1.5 text-blue-300 font-bold">
@@ -514,18 +630,49 @@ export const CBTExamModal: React.FC<CBTExamModalProps> = ({
             </p>
           </div>
 
+          {/* Real-time listening indicator */}
+          <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Sistem otomatis mendeteksi ketika Guru membuka blokir...</span>
+          </div>
+
           {/* Action Buttons */}
-          <div className="space-y-2 pt-2">
+          <div className="space-y-2 pt-1">
             <button
-              onClick={() => {
+              onClick={async () => {
+                setStatusCheckNotice(null);
+                try {
+                  const res = await fetch('/api/database');
+                  if (res.ok) {
+                    const json = await res.json();
+                    const locks: CBTSessionLock[] = json.data?.cbtSessionLocks || [];
+                    const target = locks.find(
+                      (l) => l.studentId === student.id && l.examId === exam.id
+                    );
+                    if (target && !target.isLocked) {
+                      setIsLocked(false);
+                      setJustUnlockedNotice(true);
+                      if (target.savedAnswers) setAnswers(target.savedAnswers);
+                      if (target.savedFlagged) setFlagged(new Set(target.savedFlagged));
+                      if (typeof target.savedSecondsRemaining === 'number') {
+                        setSecondsRemaining(target.savedSecondsRemaining);
+                      }
+                      enterFullscreen();
+                      return;
+                    }
+                  }
+                } catch {}
+
                 if (initialSessionLock && !initialSessionLock.isLocked) {
                   setIsLocked(false);
                   enterFullscreen();
                 } else {
-                  alert('Status CBT Masih Terblokir: Harap minta Guru Administrator untuk menekan tombol "Buka Blokir / Izinkan Ujian" pada panel pengawas.');
+                  setStatusCheckNotice(
+                    'Status: Ujian Anda masih terkunci. Harap minta Guru Administrator untuk menekan tombol "Buka Blokir / Izinkan Ujian" di panel pengawas.'
+                  );
                 }
               }}
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-colors"
+              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-colors cursor-pointer"
             >
               <RefreshCw className="w-4 h-4" />
               <span>Periksa Status Buka Blokir (Refresh)</span>

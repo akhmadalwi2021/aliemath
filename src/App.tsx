@@ -12,7 +12,6 @@ import { CBTSection } from './components/CBTSection';
 import { CBTExamModal } from './components/CBTExamModal';
 import { StudentManagement } from './components/StudentManagement';
 import { AdminManagement } from './components/AdminManagement';
-import { GitHubSyncModal } from './components/GitHubSyncModal';
 import { AuthModal } from './components/AuthModal';
 import {
   AppDatabase,
@@ -22,11 +21,10 @@ import {
   CBTExam,
   CBTAttempt,
   CBTQuestion,
-  CBTSessionLock,
-  GitHubSyncConfig
+  CBTSessionLock
 } from './types';
 import { loadDatabase, saveDatabase, syncDatabaseToServer, fetchServerDatabase } from './services/storageService';
-import { Database, GitBranch, Shield, GraduationCap, RefreshCw, CheckCircle2, CloudCheck } from 'lucide-react';
+import { Shield, GraduationCap, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   const [database, setDatabase] = useState<AppDatabase>(() => loadDatabase());
@@ -65,7 +63,6 @@ export default function App() {
   const [activeCBTExam, setActiveCBTExam] = useState<CBTExam | null>(null);
   const [activeCBTStudent, setActiveCBTStudent] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
 
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -356,10 +353,21 @@ export default function App() {
   };
 
   const handleResetExamSession = (sessionId: string) => {
-    setDatabase((prev) => ({
-      ...prev,
-      cbtSessionLocks: (prev.cbtSessionLocks || []).filter((l) => l.id !== sessionId),
-    }));
+    setDatabase((prev) => {
+      const targetLock = (prev.cbtSessionLocks || []).find((l) => l.id === sessionId);
+      const studentId = targetLock?.studentId;
+      const examId = targetLock?.examId;
+
+      return {
+        ...prev,
+        cbtSessionLocks: (prev.cbtSessionLocks || []).filter((l) => l.id !== sessionId),
+        attempts: targetLock
+          ? (prev.attempts || []).filter(
+              (a) => !(a.studentId === studentId && a.examId === examId)
+            )
+          : prev.attempts,
+      };
+    });
   };
 
   const handleUpdateSessionProgress = (
@@ -558,13 +566,6 @@ export default function App() {
     handleAdminLogin(admin);
   };
 
-  const handleUpdateGitHubConfig = (config: GitHubSyncConfig) => {
-    setDatabase((prev) => ({
-      ...prev,
-      gitHubConfig: config,
-    }));
-  };
-
   const pendingTasksCount = database.exams.filter(
     (e) => e.isActive && !database.attempts.some((a) => a.examId === e.id && a.studentId === currentUser.id)
   ).length;
@@ -576,25 +577,6 @@ export default function App() {
         adminUser={adminUser}
         onOpenAdminLogin={() => setIsAuthModalOpen(true)}
         onLogout={handleAdminLogout}
-        onOpenGitHubSync={() => setIsGitHubModalOpen(true)}
-        isGitHubConnected={Boolean(database.gitHubConfig?.token && database.gitHubConfig?.owner)}
-        lastSyncTime={lastSyncTime}
-        isSyncing={isSyncing}
-        onManualRefresh={async () => {
-          setIsSyncing(true);
-          try {
-            const res = await fetchServerDatabase();
-            if (res.success && res.data) {
-              setDatabase(res.data);
-              if (res.updatedAt) {
-                setLastSyncTime(new Date(res.updatedAt).toLocaleTimeString('id-ID'));
-              }
-            }
-          } catch {}
-          finally {
-            setIsSyncing(false);
-          }
-        }}
       />
 
       {/* Main Layout: Sidebar on Left + Dynamic Content on Center */}
@@ -689,61 +671,6 @@ export default function App() {
               onSwitchAdminUser={handleSwitchAdminUser}
             />
           )}
-
-          {activeTab === 'github_db' && currentUser.role === 'admin' && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center">
-                  <Database className="w-6 h-6" />
-                </div>
-                <div>
-                  <h1 className="text-xl sm:text-2xl font-black text-slate-900">
-                    Database & GitHub Sync Aliemath
-                  </h1>
-                  <p className="text-xs sm:text-sm text-slate-500">
-                    Platform ini dirancang 100% kompatibel dengan Vercel SPA dan GitHub sebagai tempat penyimpanan data (Database JSON).
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <GitBranch className="w-4 h-4 text-blue-600" />
-                    Status Penyimpanan Saat Ini
-                  </h3>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Semua penambahan materi, bank soal CBT, akun siswa, dan berita tersimpan secara persisten di peramban Anda (LocalStorage) serta siap diekspor ke file JSON repositori GitHub.
-                  </p>
-                  <div className="text-xs font-mono bg-white p-3 rounded-xl border border-slate-200 space-y-1 text-slate-700">
-                    <div>• Total Materi: <strong>{database.materials.length} Bab</strong></div>
-                    <div>• Total Paket CBT: <strong>{database.exams.length} Paket</strong></div>
-                    <div>• Total Akun Siswa: <strong>{database.users.filter((u) => u.role === 'student').length} Siswa</strong></div>
-                    <div>• Total Rekap Nilai: <strong>{database.attempts.length} Percobaan</strong></div>
-                  </div>
-                  <button
-                    onClick={() => setIsGitHubModalOpen(true)}
-                    className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors shadow-xs"
-                  >
-                    Buka Pengaturan Sinkronisasi GitHub & Backup
-                  </button>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-3">
-                  <h3 className="text-sm font-bold text-emerald-900 flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    Kompatibilitas Vercel (Aliemath.my.id)
-                  </h3>
-                  <p className="text-xs text-emerald-950/80 leading-relaxed">
-                    Aplikasi ini telah menyertakan berkas <code>vercel.json</code> untuk penanganan Single Page Application (SPA), sehingga saat Anda menghubungkan domain <strong>Aliemath.my.id</strong> di Vercel, semua rute dan modul akan berjalan cepat tanpa memerlukan server backend tambahan.
-                  </p>
-                  <div className="p-3 bg-white/80 rounded-xl border border-emerald-200 text-xs text-emerald-900 font-mono">
-                    Output: dist/ • SPA Rewrite: true • Zero-Config
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </main>
       </div>
 
@@ -778,15 +705,6 @@ export default function App() {
           }}
         />
       )}
-
-      {/* GitHub & Vercel Database Modal */}
-      <GitHubSyncModal
-        database={database}
-        isOpen={isGitHubModalOpen}
-        onClose={() => setIsGitHubModalOpen(false)}
-        onUpdateDatabase={(newDb) => setDatabase(newDb)}
-        onUpdateConfig={handleUpdateGitHubConfig}
-      />
 
       {/* Authentication Modal - Khusus Guru / Admin */}
       <AuthModal

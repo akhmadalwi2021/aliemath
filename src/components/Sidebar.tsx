@@ -4,7 +4,6 @@ import {
   BookOpen,
   FileCheck2,
   Users,
-  Database,
   Shield,
   GraduationCap,
   Sparkles,
@@ -14,7 +13,7 @@ import {
 } from 'lucide-react';
 import { UserRole } from '../types';
 
-export type TabType = 'news' | 'materials' | 'cbt' | 'students' | 'admins' | 'github_db';
+export type TabType = 'news' | 'materials' | 'cbt' | 'students' | 'admins';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -190,27 +189,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }`}
                 >
                   {isSuperAdmin ? 'Super' : `${totalAdminsCount} Guru`}
-                </span>
-              </button>
-            )}
-
-            {/* 6. Database & GitHub Sync (Hanya Admin) */}
-            {userRole === 'admin' && (
-              <button
-                id="sidebar-tab-github"
-                onClick={() => onSelectTab('github_db')}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  activeTab === 'github_db'
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20 font-semibold'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Database className="w-4 h-4" />
-                  <span>Database & GitHub</span>
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                  JSON DB
                 </span>
               </button>
             )}

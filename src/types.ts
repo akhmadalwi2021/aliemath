@@ -51,6 +51,7 @@ export interface LearningMaterial {
   content: string;
   keyPoints: string[];
   formulas: FormulaSnippet[];
+  imageUrl?: string; // Upload gambar / ilustrasi materi
   videoUrl?: string;
   embedLink?: string; // Sematkan link materi (opsi)
   attachmentName?: string; // File lampiran doc / pdf

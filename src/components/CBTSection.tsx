@@ -2611,16 +2611,17 @@ export const CBTSection: React.FC<CBTSectionProps> = ({
                                   onClick={() => {
                                     if (
                                       confirm(
-                                        `Reset total sesi CBT untuk "${l.studentName}"?\n\nPeringatan: Ini akan menghapus sesi terkunci ini. Gunakan hanya jika ingin siswa memulai ulang dari awal.`
+                                        `Reset total ujian CBT untuk "${l.studentName}"?\n\nPeringatan: Seluruh sesi terkunci dan hasil pengerjaan akan direset sehingga siswa dapat memulai ujian dari awal lagi.`
                                       )
                                     ) {
                                       onResetExamSession(l.id);
                                     }
                                   }}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                                  title="Reset/Hapus Sesi Ini"
+                                  className="px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                                  title="Reset total sesi pengerjaan siswa untuk memulai ulang dari awal"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <RefreshCw className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Reset Peserta</span>
                                 </button>
                               )}
                             </div>

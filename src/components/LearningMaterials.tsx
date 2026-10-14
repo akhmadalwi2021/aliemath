@@ -22,7 +22,8 @@ import {
   Link2,
   Paperclip,
   UploadCloud,
-  FileCheck
+  FileCheck,
+  Image
 } from 'lucide-react';
 import { LearningMaterial, UserRole, FormulaSnippet } from '../types';
 
@@ -65,8 +66,22 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
   const [formAttachmentName, setFormAttachmentName] = useState('');
   const [formAttachmentData, setFormAttachmentData] = useState('');
   const [formAttachmentSize, setFormAttachmentSize] = useState('');
+  const [formImageUrl, setFormImageUrl] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setFormImageUrl(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const grades = ['Semua', 'Kelas 7', 'Kelas 8', 'Kelas 9', 'Umum'];
 
@@ -93,6 +108,7 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
     setFormAttachmentName('Modul_Ringkasan_Matematika.pdf');
     setFormAttachmentData('');
     setFormAttachmentSize('1.2 MB');
+    setFormImageUrl('');
     setIsEditorOpen(true);
   };
 
@@ -110,6 +126,7 @@ export const LearningMaterials: React.FC<LearningMaterialsProps> = ({
     setFormAttachmentName(m.attachmentName || '');
     setFormAttachmentData(m.attachmentData || '');
     setFormAttachmentSize(m.attachmentSize || '');
+    setFormImageUrl(m.imageUrl || '');
     setIsEditorOpen(true);
   };
 
@@ -234,6 +251,7 @@ Unduhan resmi portal Aliemath.my.id
         content: formContent,
         keyPoints: keyPointsArray,
         formulas: formFormulas,
+        imageUrl: formImageUrl.trim() || undefined,
         embedLink: formEmbedLink.trim() || undefined,
         attachmentName: formAttachmentName.trim() || undefined,
         attachmentData: formAttachmentData || undefined,
@@ -250,6 +268,7 @@ Unduhan resmi portal Aliemath.my.id
         content: formContent,
         keyPoints: keyPointsArray,
         formulas: formFormulas,
+        imageUrl: formImageUrl.trim() || undefined,
         embedLink: formEmbedLink.trim() || undefined,
         attachmentName: formAttachmentName.trim() || undefined,
         attachmentData: formAttachmentData || undefined,
@@ -348,6 +367,18 @@ Unduhan resmi portal Aliemath.my.id
                 <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2">
                   {mat.title}
                 </h3>
+
+                {/* Material Image Preview if available */}
+                {mat.imageUrl && (
+                  <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 aspect-video max-h-40 bg-slate-100">
+                    <img
+                      src={mat.imageUrl}
+                      alt={mat.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
 
                 <p className="text-xs text-slate-500 mt-2 line-clamp-3 leading-relaxed">
                   {mat.summary}
@@ -469,6 +500,18 @@ Unduhan resmi portal Aliemath.my.id
                 <span>Terakhir diperbarui: {activeMaterial.updatedAt}</span>
               </div>
             </div>
+
+            {/* Featured Image in Reader Modal */}
+            {activeMaterial.imageUrl && (
+              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 shadow-xs max-h-72 bg-slate-900">
+                <img
+                  src={activeMaterial.imageUrl}
+                  alt={activeMaterial.title}
+                  className="w-full max-h-72 object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            )}
 
             {/* Embed Link Interactive Card (Direct clickable for students) */}
             {activeMaterial.embedLink && (
@@ -745,6 +788,95 @@ Unduhan resmi portal Aliemath.my.id
                       onChange={handleFileUpload}
                       className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700 cursor-pointer"
                     />
+                  </div>
+                )}
+              </div>
+
+              {/* Form Input for Uploading Image (JPEG / PNG / WEBP) */}
+              <div className="p-3.5 bg-amber-50/50 rounded-xl border border-amber-200/70 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-amber-950 flex items-center gap-1.5 text-xs">
+                    <Image className="w-4 h-4 text-amber-600" />
+                    Upload Foto / Ilustrasi Materi (Opsional)
+                  </label>
+                  {formImageUrl && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      ✓ Gambar Terpasang
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  Unggah gambar diagram, grafik, atau poster materi agar penjelasan modul lebih visual dan menarik.
+                </p>
+
+                {formImageUrl ? (
+                  <div className="space-y-2">
+                    <div className="relative rounded-xl overflow-hidden border border-amber-200 max-h-48 bg-slate-900 group">
+                      <img
+                        src={formImageUrl}
+                        alt="Preview"
+                        className="w-full h-44 object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (imageInputRef.current) imageInputRef.current.click();
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-white/90 text-slate-800 text-xs font-bold hover:bg-white transition-colors"
+                        >
+                          Ganti Gambar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormImageUrl('');
+                            if (imageInputRef.current) imageInputRef.current.value = '';
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-colors"
+                        >
+                          Hapus
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-slate-500 font-mono truncate max-w-xs">
+                        {formImageUrl.startsWith('data:') ? 'Foto dari perangkat (Base64)' : formImageUrl}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormImageUrl('');
+                          if (imageInputRef.current) imageInputRef.current.value = '';
+                        }}
+                        className="text-rose-600 hover:text-rose-700 font-semibold"
+                      >
+                        Hapus Gambar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex flex-col sm:flex-row items-center gap-2">
+                      <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml,.jpg,.jpeg,.png,.webp,.gif,.svg"
+                        onChange={handleImageUpload}
+                        className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase">Atau Gunakan URL:</span>
+                      <input
+                        type="url"
+                        placeholder="https://... atau link gambar diagram web"
+                        value={formImageUrl}
+                        onChange={(e) => setFormImageUrl(e.target.value)}
+                        className="flex-1 px-2.5 py-1 rounded-lg border border-amber-200 bg-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                    </div>
                   </div>
                 )}
               </div>

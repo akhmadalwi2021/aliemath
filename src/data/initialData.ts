@@ -1,4 +1,4 @@
-import { AppDatabase } from '../types';
+import type { AppDatabase } from '../types.ts';
 
 export const INITIAL_DATABASE: AppDatabase = {
   users: [

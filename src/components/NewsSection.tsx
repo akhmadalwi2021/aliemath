@@ -699,46 +699,89 @@ ${item.embedLink ? `\nTautan: ${item.embedLink}` : ''}
                 )}
               </div>
 
-              {/* Form Input for Uploading Image (JPEG / JPG) */}
-              <div className="p-3.5 bg-amber-50/50 rounded-xl border border-amber-200/70 space-y-2">
-                <label className="block font-bold text-amber-950 flex items-center gap-1.5">
-                  <Image className="w-4 h-4 text-amber-600" />
-                  Unggah Gambar Berita / Poster (JPEG / JPG / PNG) (Opsional)
-                </label>
-                <p className="text-[11px] text-amber-800">
-                  Gambar akan ditampilkan sebagai poster sampul berita dan di kartu informasi.
+              {/* Form Input for Uploading Image (JPEG / JPG / PNG / WEBP) */}
+              <div className="p-3.5 bg-amber-50/50 rounded-xl border border-amber-200/70 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-amber-950 flex items-center gap-1.5 text-xs">
+                    <Image className="w-4 h-4 text-amber-600" />
+                    Upload Foto / Gambar Poster Berita (Opsional)
+                  </label>
+                  {formImageUrl && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      ✓ Gambar Terpasang
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  Pilih file gambar dari perangkat Anda atau tempel link URL gambar untuk membuat berita terlihat menarik dan profesional.
                 </p>
 
                 {formImageUrl ? (
                   <div className="space-y-2">
-                    <div className="relative rounded-lg overflow-hidden border border-amber-200 max-h-36 bg-white">
+                    <div className="relative rounded-xl overflow-hidden border border-amber-200 max-h-48 bg-slate-900 group">
                       <img
                         src={formImageUrl}
                         alt="Preview"
-                        className="w-full h-36 object-cover"
+                        className="w-full h-44 object-cover"
                         referrerPolicy="no-referrer"
                       />
+                      <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (imageInputRef.current) imageInputRef.current.click();
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-white/90 text-slate-800 text-xs font-bold hover:bg-white transition-colors"
+                        >
+                          Ganti Gambar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormImageUrl('');
+                            if (imageInputRef.current) imageInputRef.current.value = '';
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-colors"
+                        >
+                          Hapus
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFormImageUrl('');
-                        if (imageInputRef.current) imageInputRef.current.value = '';
-                      }}
-                      className="text-rose-500 hover:text-rose-700 text-xs font-semibold"
-                    >
-                      Hapus Gambar
-                    </button>
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-slate-500 font-mono truncate max-w-xs">{formImageUrl.startsWith('data:') ? 'Foto dari perangkat (Base64)' : formImageUrl}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormImageUrl('');
+                          if (imageInputRef.current) imageInputRef.current.value = '';
+                        }}
+                        className="text-rose-600 hover:text-rose-700 font-semibold"
+                      >
+                        Hapus Gambar
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div>
-                    <input
-                      ref={imageInputRef}
-                      type="file"
-                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                      onChange={handleImageUpload}
-                      className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer"
-                    />
+                  <div className="space-y-2">
+                    <div className="flex flex-col sm:flex-row items-center gap-2">
+                      <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml,.jpg,.jpeg,.png,.webp,.gif,.svg"
+                        onChange={handleImageUpload}
+                        className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase">Atau Gunakan URL:</span>
+                      <input
+                        type="url"
+                        placeholder="https://images.unsplash.com/... atau link gambar web"
+                        value={formImageUrl}
+                        onChange={(e) => setFormImageUrl(e.target.value)}
+                        className="flex-1 px-2.5 py-1 rounded-lg border border-amber-200 bg-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
