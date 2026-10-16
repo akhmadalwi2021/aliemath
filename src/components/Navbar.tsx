@@ -1,17 +1,25 @@
 import React from 'react';
-import { Shield, LogIn, LogOut } from 'lucide-react';
+import { Shield, LogIn, LogOut, Flame, CloudCheck, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { User } from '../types';
 
 interface NavbarProps {
   adminUser: User | null;
   onOpenAdminLogin: () => void;
   onLogout: () => void;
+  onOpenFirebaseSettings?: () => void;
+  isSyncing?: boolean;
+  lastSyncTime?: string | null;
+  firebaseAutoSync?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   adminUser,
   onOpenAdminLogin,
   onLogout,
+  onOpenFirebaseSettings,
+  isSyncing = false,
+  lastSyncTime,
+  firebaseAutoSync = true,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all">
@@ -28,17 +36,48 @@ export const Navbar: React.FC<NavbarProps> = ({
                   Aliemath<span className="text-blue-600 font-black">.my.id</span>
                 </span>
                 <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                  CBT & EduPortal
+                  CBT &amp; EduPortal
                 </span>
               </div>
               <p className="text-xs text-slate-500 hidden sm:block">
-                Platform Pembelajaran Matematika & CBT Terintegrasi
+                Platform Pembelajaran Matematika &amp; CBT Terintegrasi
               </p>
             </div>
           </div>
 
           {/* Right Controls */}
-          <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            
+            {/* Firebase Status & Settings Trigger */}
+            {onOpenFirebaseSettings && (
+              <button
+                type="button"
+                onClick={onOpenFirebaseSettings}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-amber-200 bg-amber-50/80 hover:bg-amber-100/80 text-amber-900 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+                title="Buka Pengaturan Database Firebase (Projek: aliemath)"
+              >
+                <div className="w-5 h-5 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
+                  <Flame className="w-3.5 h-3.5" />
+                </div>
+                <div className="hidden lg:flex flex-col text-left text-[11px] leading-tight">
+                  <span className="font-bold text-amber-950 flex items-center gap-1">
+                    Firebase: aliemath
+                    {isSyncing ? (
+                      <RefreshCw className="w-2.5 h-2.5 text-amber-700 animate-spin" />
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    )}
+                  </span>
+                  <span className="text-[10px] text-amber-700 font-normal">
+                    {isSyncing
+                      ? 'Menyimpan ke Cloud...'
+                      : firebaseAutoSync
+                      ? 'Tersimpan Otomatis'
+                      : 'Sinkronisasi Manual'}
+                  </span>
+                </div>
+              </button>
+            )}
 
             {/* Admin Login / Admin Profile in Top Right Corner */}
             {adminUser ? (
@@ -52,7 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {adminUser.fullName}
                     </div>
                     <div className="text-[10px] text-purple-700 font-medium">
-                      {adminUser.isSuperAdmin ? 'Guru Utama (Super Admin)' : 'Guru Pengampu'}
+                      {adminUser.isSuperAdmin ? 'Guru Utama (Super Admin)' : 'Guru Pengampu (Admin)'}
                     </div>
                   </div>
                 </div>
@@ -73,7 +112,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="btn-admin-login"
                 onClick={onOpenAdminLogin}
                 className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-sm shadow-indigo-500/20 transition-all cursor-pointer"
-                title="Login Khusus Guru / Administrator"
+                title="Login Khusus Guru & Super Admin"
               >
                 <Shield className="w-4 h-4" />
                 <span>Login Admin (Guru)</span>

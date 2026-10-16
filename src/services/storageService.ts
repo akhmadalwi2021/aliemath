@@ -38,6 +38,9 @@ export function loadDatabase(): AppDatabase {
       return {
         ...u,
         isSuperAdmin: u.isSuperAdmin !== undefined ? u.isSuperAdmin : isFirstAdmin,
+        email: u.email || (isFirstAdmin ? 'akhmadalwi2021@gmail.com' : undefined),
+        firebaseUid: u.firebaseUid || (isFirstAdmin ? 'QIdqovxl9pR55TeaIJj6eNe45gF2' : undefined),
+        subjectAssigned: u.subjectAssigned || (isFirstAdmin ? 'Semua Mata Pelajaran / Super Admin' : (u.role === 'admin' ? 'Guru Pengampu' : undefined)),
         session: u.session || (u.role === 'student' ? 'Sesi 1' : undefined),
         examTime: u.examTime || (u.role === 'student' ? '07:30 - 09:30 WIB' : undefined),
       };
@@ -72,6 +75,14 @@ export function loadDatabase(): AppDatabase {
       attempts,
       cbtSessionLocks: parsed.cbtSessionLocks || [],
       gitHubConfig: parsed.gitHubConfig || INITIAL_DATABASE.gitHubConfig,
+      firebaseConfig: parsed.firebaseConfig || INITIAL_DATABASE.firebaseConfig || {
+        projectId: 'aliemath',
+        superAdminUid: 'QIdqovxl9pR55TeaIJj6eNe45gF2',
+        firestoreCollection: 'appData',
+        firestoreDoc: 'main',
+        autoSync: true,
+        lastStatus: 'connected',
+      },
       printSettings: parsed.printSettings || DEFAULT_PRINT_SETTINGS,
       lastUpdatedAt: parsed.lastUpdatedAt || new Date().toISOString(),
     };
@@ -95,33 +106,111 @@ export function saveDatabase(db: AppDatabase): void {
   }
 }
 
-const FIRESTORE_DOC = 'appData/main';
+export const FIRESTORE_COLLECTION = 'appData';
+export const FIRESTORE_DOC_ID = 'main';
+
+export async function testFirestoreConnection(): Promise<{ success: boolean; message: string }> {
+  try {
+    const pingRef = doc(db, FIRESTORE_COLLECTION, 'healthcheck');
+    await setDoc(pingRef, {
+      ping: true,
+      testedAt: serverTimestamp(),
+      clientTimestamp: new Date().toISOString(),
+      projectId: 'aliemath',
+    }, { merge: true });
+    return {
+      success: true,
+      message: 'Koneksi ke Firebase Firestore (aliemath) aktif dan berhasil menulis data!',
+    };
+  } catch (err: any) {
+    try {
+      const readRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID);
+      await getDoc(readRef);
+      return {
+        success: true,
+        message: 'Koneksi baca ke Firebase Firestore (aliemath) berhasil terhubung!',
+      };
+    } catch (readErr: any) {
+      console.warn('[Firestore Ping Error]', err, readErr);
+      return {
+        success: false,
+        message: `Koneksi Firebase gagal: ${err?.message || readErr?.message || 'Periksa konfigurasi atau koneksi internet'}`,
+      };
+    }
+  }
+}
 
 export async function saveDatabaseToFirestore(
   data: AppDatabase
-): Promise<void> {
-  const databaseRef = doc(db, FIRESTORE_DOC);
-  await setDoc(databaseRef, {
-    data,
-    updatedAt: serverTimestamp(),
-  });
+): Promise<{ success: boolean; message: string; updatedAt?: string }> {
+  try {
+    const databaseRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID);
+    const nowIso = new Date().toISOString();
+    
+    // Sanitize data: ensure no undefined fields which Firestore rejects
+    const sanitized = JSON.parse(JSON.stringify(data));
+
+    await setDoc(databaseRef, {
+      data: sanitized,
+      updatedAt: serverTimestamp(),
+      updatedAtIso: nowIso,
+      updatedByUid: 'QIdqovxl9pR55TeaIJj6eNe45gF2',
+    });
+
+    return {
+      success: true,
+      updatedAt: nowIso,
+      message: 'Data berhasil disinkronkan otomatis ke Firebase Firestore (aliemath)!',
+    };
+  } catch (err: any) {
+    console.warn('[Firestore] Error saving to Firestore:', err);
+    return {
+      success: false,
+      message: `Peringatan Firestore: ${err?.message || 'Gagal menyimpan ke cloud'}`,
+    };
+  }
 }
 
-export async function loadDatabaseFromFirestore(): Promise<AppDatabase | null> {
-  const databaseRef = doc(db, FIRESTORE_DOC);
-  const snapshot = await getDoc(databaseRef);
+export async function loadDatabaseFromFirestore(): Promise<{
+  success: boolean;
+  data?: AppDatabase;
+  message?: string;
+  updatedAt?: string;
+}> {
+  try {
+    const databaseRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID);
+    const snapshot = await getDoc(databaseRef);
 
-  if (!snapshot.exists()) {
-    return null;
+    if (!snapshot.exists()) {
+      return {
+        success: false,
+        message: 'Belum ada data tersimpan di Firebase Firestore (aliemath). Menggunakan data lokal.',
+      };
+    }
+
+    const docData = snapshot.data();
+    const savedData = docData?.data;
+
+    if (!savedData || !Array.isArray(savedData.users) || !Array.isArray(savedData.materials)) {
+      return {
+        success: false,
+        message: 'Format data di Firebase Firestore tidak valid.',
+      };
+    }
+
+    return {
+      success: true,
+      data: savedData as AppDatabase,
+      updatedAt: docData?.updatedAtIso || new Date().toISOString(),
+      message: 'Berhasil mengunduh data terbaru dari Firebase Firestore!',
+    };
+  } catch (err: any) {
+    console.warn('[Firestore] Error loading from Firestore:', err);
+    return {
+      success: false,
+      message: `Gagal memuat dari Firestore: ${err?.message || 'Error'}`,
+    };
   }
-
-  const savedData = snapshot.data()?.data;
-
-  if (!savedData || !Array.isArray(savedData.users)) {
-    throw new Error('Format data Firestore tidak valid.');
-  }
-
-  return savedData as AppDatabase;
 }
 /**
  * Syncs the current database to the server /api/database

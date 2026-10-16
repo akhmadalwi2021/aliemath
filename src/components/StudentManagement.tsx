@@ -375,7 +375,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             Data Akun Siswa Terdaftar
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
-            Siswa hanya dapat login ke ujian CBT menggunakan akun resmi yang didaftarkan langsung oleh Guru / Admin. Unduh template atau upload file untuk sinkronisasi massal.
+            Akses Guru &amp; Super Admin: Guru Pengampu maupun Super Admin berwenang menambahkan dan membuatkan akun siswa, mengunduh/mengunggah template massal, serta mengelola sesi ujian CBT.
           </p>
         </div>
 

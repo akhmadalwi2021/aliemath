@@ -9,7 +9,8 @@ import {
   Sparkles,
   Info,
   ChevronRight,
-  ClipboardList
+  ClipboardList,
+  Flame,
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -25,6 +26,7 @@ interface SidebarProps {
   totalStudentsCount?: number;
   totalAdminsCount?: number;
   lockedSessionsCount?: number;
+  onOpenFirebaseSettings?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -37,6 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   totalStudentsCount = 0,
   totalAdminsCount = 1,
   lockedSessionsCount = 0,
+  onOpenFirebaseSettings,
 }) => {
   return (
     <aside className="w-full md:w-64 shrink-0 bg-white border-r border-slate-200 min-h-[calc(100vh-4rem)] p-4 flex flex-col justify-between">
@@ -189,6 +192,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }`}
                 >
                   {isSuperAdmin ? 'Super' : `${totalAdminsCount} Guru`}
+                </span>
+              </button>
+            )}
+
+            {/* 6. Pengaturan Database Firebase */}
+            {userRole === 'admin' && onOpenFirebaseSettings && (
+              <button
+                id="sidebar-btn-firebase"
+                onClick={onOpenFirebaseSettings}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-amber-800 bg-amber-50/70 hover:bg-amber-100/80 border border-amber-200/80 cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Flame className="w-4 h-4 text-amber-600" />
+                  <span>Database Firebase</span>
+                </div>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-amber-200/90 text-amber-900 font-mono">
+                  aliemath
                 </span>
               </button>
             )}

@@ -6,6 +6,8 @@ export interface User {
   fullName: string;
   role: UserRole;
   password?: string;
+  email?: string; // Email untuk login Firebase
+  firebaseUid?: string; // UID Firebase Auth (e.g. QIdqovxl9pR55TeaIJj6eNe45gF2)
   nisn?: string;
   classGroup?: string;
   session?: string; // Sesi 1, Sesi 2, Sesi 3, dll
@@ -14,6 +16,18 @@ export interface User {
   isSuperAdmin?: boolean; // Hanya guru/admin utama yang bisa kelola admin lain
   status: 'active' | 'inactive';
   createdAt: string;
+  subjectAssigned?: string; // Bidang pengampu / catatan guru
+}
+
+export interface FirebaseSyncConfig {
+  projectId: string; // e.g. 'aliemath'
+  superAdminUid: string; // 'QIdqovxl9pR55TeaIJj6eNe45gF2'
+  firestoreCollection: string; // 'appData'
+  firestoreDoc: string; // 'main'
+  autoSync: boolean; // Simpan otomatis setiap perubahan
+  lastSyncedAt?: string;
+  lastStatus?: 'connected' | 'error' | 'syncing' | 'idle';
+  lastErrorMessage?: string;
 }
 
 export interface NewsItem {
@@ -178,6 +192,7 @@ export interface AppDatabase {
   attempts: CBTAttempt[];
   cbtSessionLocks?: CBTSessionLock[];
   gitHubConfig?: GitHubSyncConfig;
+  firebaseConfig?: FirebaseSyncConfig;
   printSettings?: PrintSignatureSettings;
   lastUpdatedAt?: string;
 }

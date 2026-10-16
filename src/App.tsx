@@ -13,6 +13,7 @@ import { CBTExamModal } from './components/CBTExamModal';
 import { StudentManagement } from './components/StudentManagement';
 import { AdminManagement } from './components/AdminManagement';
 import { AuthModal } from './components/AuthModal';
+import { FirebaseSettingsModal } from './components/FirebaseSettingsModal';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth } from './services/firebase';
 import {
@@ -25,7 +26,14 @@ import {
   CBTQuestion,
   CBTSessionLock
 } from './types';
-import { loadDatabase, saveDatabase, syncDatabaseToServer, fetchServerDatabase } from './services/storageService';
+import {
+  loadDatabase,
+  saveDatabase,
+  syncDatabaseToServer,
+  fetchServerDatabase,
+  saveDatabaseToFirestore,
+  loadDatabaseFromFirestore
+} from './services/storageService';
 import { Shield, GraduationCap, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
@@ -65,6 +73,7 @@ export default function App() {
   const [activeCBTExam, setActiveCBTExam] = useState<CBTExam | null>(null);
   const [activeCBTStudent, setActiveCBTStudent] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isFirebaseSettingsModalOpen, setIsFirebaseSettingsModalOpen] = useState(false);
 
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -73,7 +82,7 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
 
-    const pullFromServer = async () => {
+    const pullFromServerOrFirestore = async () => {
       try {
         const res = await fetchServerDatabase();
         if (res.success && res.data && isMounted) {
@@ -81,22 +90,32 @@ export default function App() {
           if (res.updatedAt) {
             setLastSyncTime(new Date(res.updatedAt).toLocaleTimeString('id-ID'));
           }
+          return;
+        }
+
+        // If local server didn't respond, try pulling from cloud Firebase Firestore
+        const fbRes = await loadDatabaseFromFirestore();
+        if (fbRes.success && fbRes.data && isMounted) {
+          setDatabase(fbRes.data);
+          if (fbRes.updatedAt) {
+            setLastSyncTime(new Date(fbRes.updatedAt).toLocaleTimeString('id-ID'));
+          }
         }
       } catch (err) {
         console.warn('[Sync] Background sync fetch error:', err);
       }
     };
 
-    pullFromServer();
+    pullFromServerOrFirestore();
 
-    const onFocus = () => pullFromServer();
+    const onFocus = () => pullFromServerOrFirestore();
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') pullFromServer();
+      if (document.visibilityState === 'visible') pullFromServerOrFirestore();
     };
 
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibilityChange);
-    const intervalId = setInterval(pullFromServer, 10000);
+    const intervalId = setInterval(pullFromServerOrFirestore, 15000);
 
     return () => {
       isMounted = false;
@@ -106,17 +125,35 @@ export default function App() {
     };
   }, []);
 
-  // 2. Persist state changes to local storage AND upload to the central server so mobile devices update immediately
+  // 2. Persist state changes: save locally, upload to /api/database, AND automatically sync to Firebase Firestore!
   useEffect(() => {
     saveDatabase(database);
     setIsSyncing(true);
-    syncDatabaseToServer(database)
-      .then((res) => {
-        if (res.success && res.updatedAt) {
-          setLastSyncTime(new Date(res.updatedAt).toLocaleTimeString('id-ID'));
+
+    const syncTasks: Promise<any>[] = [
+      syncDatabaseToServer(database).catch((err) => {
+        console.warn('[Sync] Server sync warning:', err);
+        return { success: false };
+      }),
+    ];
+
+    // If autoSync is enabled (default: true), automatically save to Firebase Firestore
+    if (database.firebaseConfig?.autoSync !== false) {
+      syncTasks.push(
+        saveDatabaseToFirestore(database).catch((err) => {
+          console.warn('[Sync] Firestore auto-save warning:', err);
+          return { success: false };
+        })
+      );
+    }
+
+    Promise.all(syncTasks)
+      .then(([serverRes, firestoreRes]) => {
+        const timestamp = firestoreRes?.updatedAt || serverRes?.updatedAt;
+        if (timestamp) {
+          setLastSyncTime(new Date(timestamp).toLocaleTimeString('id-ID'));
         }
       })
-      .catch(() => {})
       .finally(() => {
         setIsSyncing(false);
       });
@@ -514,17 +551,24 @@ const handleAdminLogout = () => {
     });
   };
 
-  // ---------------- Admin Actions (Super Admin Exclusive - Req 5) ----------------
-  const handleAddAdmin = (newAdmin: { fullName: string; username: string; password?: string }) => {
+  // ---------------- Admin Actions (Super Admin Exclusive) ----------------
+  const handleAddAdmin = (newAdmin: {
+    fullName: string;
+    username: string;
+    password?: string;
+    email?: string;
+    subjectAssigned?: string;
+  }) => {
     if (!currentUser.isSuperAdmin) {
-      alert('Akses Ditolak: Hanya Guru Utama (Super Admin) yang berwenang menambahkan admin baru.');
       return;
     }
-    const adminUser: User = {
+    const newAdminUser: User = {
       id: `usr_adm_${Date.now()}`,
       fullName: newAdmin.fullName,
       username: newAdmin.username,
+      email: newAdmin.email || `${newAdmin.username}@aliemath.my.id`,
       password: newAdmin.password || '123456',
+      subjectAssigned: newAdmin.subjectAssigned || 'Guru Pengampu Matematika',
       role: 'admin',
       isSuperAdmin: false,
       status: 'active',
@@ -532,13 +576,12 @@ const handleAdminLogout = () => {
     };
     setDatabase((prev) => ({
       ...prev,
-      users: [...prev.users, adminUser],
+      users: [...prev.users, newAdminUser],
     }));
   };
 
   const handleUpdateAdminPassword = (adminId: string, newPassword: string) => {
     if (!currentUser.isSuperAdmin) {
-      alert('Akses Ditolak: Hanya Guru Utama (Super Admin) yang berwenang mengatur dan mengganti password akun admin.');
       return;
     }
     setDatabase((prev) => ({
@@ -552,12 +595,10 @@ const handleAdminLogout = () => {
 
   const handleDeleteAdmin = (adminId: string) => {
     if (!currentUser.isSuperAdmin) {
-      alert('Akses Ditolak: Hanya Guru Utama (Super Admin) yang berwenang menghapus admin.');
       return;
     }
     const target = database.users.find((u) => u.id === adminId);
     if (target?.isSuperAdmin) {
-      alert('Peringatan: Akun Guru Utama / Super Admin dilindungi dan tidak dapat dihapus.');
       return;
     }
     setDatabase((prev) => ({
@@ -584,6 +625,10 @@ const handleAdminLogout = () => {
         adminUser={adminUser}
         onOpenAdminLogin={() => setIsAuthModalOpen(true)}
         onLogout={handleAdminLogout}
+        onOpenFirebaseSettings={() => setIsFirebaseSettingsModalOpen(true)}
+        isSyncing={isSyncing}
+        lastSyncTime={lastSyncTime}
+        firebaseAutoSync={database.firebaseConfig?.autoSync !== false}
       />
 
       {/* Main Layout: Sidebar on Left + Dynamic Content on Center */}
@@ -599,6 +644,7 @@ const handleAdminLogout = () => {
           totalStudentsCount={database.users.filter((u) => u.role === 'student').length}
           totalAdminsCount={database.users.filter((u) => u.role === 'admin').length}
           lockedSessionsCount={(database.cbtSessionLocks || []).filter((l) => l.isLocked).length}
+          onOpenFirebaseSettings={() => setIsFirebaseSettingsModalOpen(true)}
         />
 
         {/* Center / Main Content Area */}
@@ -676,6 +722,7 @@ const handleAdminLogout = () => {
               onUpdateAdminPassword={handleUpdateAdminPassword}
               onDeleteAdmin={handleDeleteAdmin}
               onSwitchAdminUser={handleSwitchAdminUser}
+              onNavigateTab={(tab) => setActiveTab(tab)}
             />
           )}
         </main>
@@ -713,7 +760,7 @@ const handleAdminLogout = () => {
         />
       )}
 
-      {/* Authentication Modal - Khusus Guru / Admin */}
+      {/* Authentication Modal - Khusus Guru / Admin (Super Admin & Guru Pengampu) */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
@@ -721,6 +768,16 @@ const handleAdminLogout = () => {
         onLoginSuccess={(user) => {
           handleAdminLogin(user);
         }}
+      />
+
+      {/* Firebase Database Settings Modal */}
+      <FirebaseSettingsModal
+        isOpen={isFirebaseSettingsModalOpen}
+        onClose={() => setIsFirebaseSettingsModalOpen(false)}
+        database={database}
+        onUpdateDatabase={(updated) => setDatabase(updated)}
+        onDatabasePulled={(pulledDb) => setDatabase(pulledDb)}
+        isSuperAdmin={Boolean(currentUser.isSuperAdmin)}
       />
     </div>
   );
