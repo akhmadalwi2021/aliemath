@@ -1,5 +1,7 @@
 import { AppDatabase, GitHubSyncConfig, PrintSignatureSettings } from '../types';
 import { INITIAL_DATABASE } from '../data/initialData';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from './firebase';
 
 const STORAGE_KEY = 'aliemath_db_v2';
 const LEGACY_STORAGE_KEY = 'aliemath_db_v1';
@@ -93,6 +95,34 @@ export function saveDatabase(db: AppDatabase): void {
   }
 }
 
+const FIRESTORE_DOC = 'appData/main';
+
+export async function saveDatabaseToFirestore(
+  data: AppDatabase
+): Promise<void> {
+  const databaseRef = doc(db, FIRESTORE_DOC);
+  await setDoc(databaseRef, {
+    data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function loadDatabaseFromFirestore(): Promise<AppDatabase | null> {
+  const databaseRef = doc(db, FIRESTORE_DOC);
+  const snapshot = await getDoc(databaseRef);
+
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  const savedData = snapshot.data()?.data;
+
+  if (!savedData || !Array.isArray(savedData.users)) {
+    throw new Error('Format data Firestore tidak valid.');
+  }
+
+  return savedData as AppDatabase;
+}
 /**
  * Syncs the current database to the server /api/database
  * This ensures changes made from PC immediately persist and appear on mobile phones!

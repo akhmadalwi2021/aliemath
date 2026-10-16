@@ -13,6 +13,8 @@ import { CBTExamModal } from './components/CBTExamModal';
 import { StudentManagement } from './components/StudentManagement';
 import { AdminManagement } from './components/AdminManagement';
 import { AuthModal } from './components/AuthModal';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { auth } from './services/firebase';
 import {
   AppDatabase,
   User,
@@ -139,17 +141,22 @@ export default function App() {
     }
   };
 
-  const handleAdminLogout = () => {
-    setAdminUser(null);
-    try {
-      localStorage.removeItem('aliemath_admin_id');
-    } catch {
-      // Ignored
-    }
-    if (activeTab === 'students' || activeTab === 'admins') {
-      setActiveTab('news');
-    }
-  };
+  
+const handleAdminLogout = () => {
+  signOut(auth).catch((error) => {
+    console.error('Gagal keluar dari Firebase:', error);
+  });
+
+  setAdminUser(null);
+
+  try {
+    localStorage.removeItem('aliemath_admin_id');
+  } catch {}
+
+  if (activeTab === 'students' || activeTab === 'admins') {
+    setActiveTab('news');
+  }
+};
 
   const handleCbtStudentLogin = (student: User) => {
     setCbtStudent(student);
